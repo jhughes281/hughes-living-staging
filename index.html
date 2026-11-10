@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Hughes Living Staging</title>
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Courier+Prime:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=8">
+</head>
+<body class="office">
+<a class="skip" href="#view">Skip to the page</a>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="#houses" aria-label="Hughes Living Staging, houses">
+      <span class="mark__name">Hughes Living <em>Staging</em></span>
+      <span class="mark__role">Office</span>
+    </a>
+    <nav class="tabs" id="tabs" aria-label="Sections" hidden>
+      <a href="#houses" data-tab="houses">Houses</a>
+      <a href="#furniture" data-tab="furniture">Furniture</a>
+      <a href="#requests" data-tab="requests">Requests <span class="tabs__n" id="reqCount" hidden></span></a>
+      <a href="#money" data-tab="money" data-staff>Money</a>
+      <a href="#accounts" data-tab="accounts" data-staff>Accounts</a>
+    </nav>
+    <span class="bar__who" id="who" hidden></span>
+    <button class="linkbtn bar__out" id="signOut" type="button" hidden>Sign out</button>
+  </div>
+</header>
+
+<p class="notice" id="demoNote" hidden>
+  Sample mode: accounts and data are saved in this browser only. Buyers' phones cannot see it.
+  <a href="?backend=supabase">Switch to the live database</a>
+</p>
+
+<main class="wrap view" id="view" tabindex="-1">
+  <p class="loading">Opening the office&hellip;</p>
+</main>
+
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"></dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="config.js?v=3"></script>
+<script src="api.js?v=5"></script>
+<script src="app.js?v=6"></script>
+</body>
+</html>

@@ -425,3 +425,47 @@ a.hrow:hover{ background:var(--cream); }
 }
 /* on narrow screens the sign-in choices come first; the room strip below carries the photos */
 @media (max-width: 860px){ .door__img{ display:none; } }
+
+/* ================================================================ gallery */
+.gallery .tabs{ margin-left:auto; width:auto; order:0; }
+.gallery__sub{ max-width:46ch; }
+.shots{ columns:2; column-gap:1.25rem; }
+.shot{ margin:0 0 1.5rem; break-inside:avoid; }
+.shot--lead{ column-span:all; }
+.shot__btn{ display:block; width:100%; padding:0; border:0; background:var(--sand); cursor:zoom-in; }
+.shot__btn img{ width:100%; height:auto; display:block; transition:opacity .2s; }
+.shot__btn:hover img{ opacity:.88; }
+.shot figcaption{ font-family:var(--f-disp); font-style:italic; font-size:1.2rem; color:var(--ink); padding-top:.5rem; }
+.shot--lead figcaption{ font-size:1.5rem; }
+.gallery__fine{ margin-top:1rem; }
+
+.viewer{ border:0; padding:0; background:transparent; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; }
+.viewer::backdrop{ background:rgba(20,19,16,.93); }
+.viewer[open]{ display:grid; place-items:center; }
+.viewer__fig{ margin:0; max-width:min(1500px, calc(100vw - 2rem)); }
+.viewer__fig img{ display:block; width:auto; height:auto; max-width:100%; max-height:calc(100dvh - 7.5rem); margin-inline:auto; }
+.viewer__fig figcaption{ display:flex; justify-content:space-between; gap:1rem; padding-top:.7rem; color:#fff; font-family:var(--f-disp); font-style:italic; font-size:1.2rem; }
+.viewer__n{ font-family:var(--f-data); font-style:normal; font-size:.85rem; color:#CFC8BB; white-space:nowrap; }
+.viewer__btn{ position:fixed; width:48px; height:48px; background:rgba(20,19,16,.6); color:#fff; border:1px solid rgba(255,255,255,.5); font-size:1.4rem; line-height:1; cursor:pointer; }
+.viewer__btn:hover{ background:#fff; color:var(--ink); }
+.viewer__btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+.viewer__prev{ left:.75rem; top:50%; transform:translateY(-50%); }
+.viewer__next{ right:.75rem; top:50%; transform:translateY(-50%); }
+.viewer__x{ right:.75rem; top:.75rem; font-size:1.7rem; }
+.door__more{ margin:1.2rem 0 0; }
+@media (max-width: 700px){
+  .shots{ columns:1; }
+  .shot--lead figcaption{ font-size:1.2rem; }
+  .viewer__prev, .viewer__next{ top:auto; bottom:.75rem; transform:none; }
+  .viewer__fig img{ max-height:calc(100dvh - 10rem); }
+}
+
+/* three kinds of customer at the door */
+.kinds{ grid-template-columns:repeat(3, 1fr); }
+.kind p{ min-height:4.6em; }
+@media (max-width: 900px){
+  .kinds{ grid-template-columns:1fr; }
+  .kind{ padding-right:0; }
+  .kind + .kind{ padding-left:0; border-left:0; }
+  .kind p{ min-height:0; }
+}

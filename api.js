@@ -7,7 +7,7 @@
      name                      'demo' | 'supabase'
      session()                 -> { signedIn, email, name, kind, staff }
                                   kind: 'owner' (Hughes Living staff), 'self'
-                                  (staging my own house), 'designer', or null
+                                  (staging my own house), 'designer', 'realtor', or null
                                   for a signed-in user with no account yet
      signIn(email, password)   signOut()
      signUp({ kind, name, studio, phone, email, password })
@@ -37,7 +37,7 @@
 
   /* ================================================================ demo */
   function demoBackend() {
-    var KEY = 'hls-demo-v4', SKEY = 'hls-demo-session';
+    var KEY = 'hls-demo-v5', SKEY = 'hls-demo-session';
 
     function seed() {
       var day = 86400000, now = Date.now();
@@ -57,12 +57,17 @@
         { id: 3, code: 'SAMPLE44', address: '27 Demo Pine Drive', city: 'Houston', zip: '77018',
           client_name: null, client_phone: '', client_email: '', listing_url: '',
           status: 'planned', staged_on: null, destage_on: null, fee_cents: 95000, cover_url: 'img/looks/look-media-wall.webp',
-          public_note: null, notes: 'Sample house.', account_id: 3, created_at: iso(2) }
+          public_note: null, notes: 'Sample house.', account_id: 3, created_at: iso(2) },
+        { id: 4, code: 'SAMPLE55', address: '302 Sample Heights Blvd', city: 'Houston', zip: '77008',
+          client_name: 'Sample Seller', client_phone: '', client_email: '', listing_url: '',
+          status: 'planned', staged_on: null, destage_on: null, fee_cents: 150000, cover_url: 'img/looks/look-navy-accent.webp',
+          public_note: null, notes: 'Sample house.', account_id: 4, created_at: iso(1) }
       ];
       var accounts = [
         { id: 1, kind: 'owner', name: 'Hughes Living', studio: null, phone: null, email: 'office@sample.test', created_at: iso(30) },
         { id: 2, kind: 'designer', name: 'Sample Designer', studio: 'Sample Interiors', phone: null, email: 'designer@sample.test', created_at: iso(20) },
-        { id: 3, kind: 'self', name: 'Sample Homeowner', studio: null, phone: null, email: 'homeowner@sample.test', created_at: iso(5) }
+        { id: 3, kind: 'self', name: 'Sample Homeowner', studio: null, phone: null, email: 'homeowner@sample.test', created_at: iso(5) },
+        { id: 4, kind: 'realtor', name: 'Sample Realtor', studio: 'Sample Realty Group', phone: null, email: 'realtor@sample.test', created_at: iso(3) }
       ];
       var n = 1000;
       var it = function (title, cat, src, cost, price, house, room, photo, details, extra) {
@@ -98,7 +103,7 @@
           piece_count: null, total_cents: null, created_at: iso(1) }
       ];
       return { houses: houses, items: items, moves: moves, requests: requests, accounts: accounts, catalog: [],
-               seq: { house: 4, item: 11, move: 20, req: 2, tag: 1011, account: 4 } };
+               seq: { house: 5, item: 11, move: 20, req: 2, tag: 1011, account: 5 } };
     }
 
     function load() {
@@ -162,13 +167,13 @@
       signUp: function (p) {
         var s = load();
         var email = (p.email || '').trim().toLowerCase();
-        if (p.kind !== 'self' && p.kind !== 'designer') return no('Choose staging it myself or interior designer.');
+        if (['self', 'designer', 'realtor'].indexOf(p.kind) === -1) return no('Choose staging it myself, interior designer or realtor.');
         if (!txt(p.name)) return no('Please give your name.');
         if (!/^\S+@\S+\.\S+$/.test(email)) return no('Enter a valid email address.');
         if ((p.password || '').length < 8) return no('Use a password of at least 8 characters.');
         if (s.accounts.some(function (x) { return (x.email || '').toLowerCase() === email; })) return no('There is already an account for that email. Sign in instead.');
         return digest(email, p.password).then(function (h) {
-          var a = { id: s.seq.account++, kind: p.kind, name: txt(p.name), studio: p.kind === 'designer' ? txt(p.studio) : null,
+          var a = { id: s.seq.account++, kind: p.kind, name: txt(p.name), studio: p.kind === 'self' ? null : txt(p.studio),
                     phone: txt(p.phone), email: email, pass: h, created_at: new Date().toISOString() };
           s.accounts.push(a); save(s); setSession(a.id); return true;
         });

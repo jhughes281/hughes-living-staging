@@ -20,6 +20,7 @@
     var reach = [CFG.contactPhone && '<a href="tel:' + esc(CFG.contactPhone.replace(/[^\d+]/g, '')) + '">' + esc(CFG.contactPhone) + '</a>',
                  CFG.contactEmail && '<a href="mailto:' + esc(CFG.contactEmail) + '">' + esc(CFG.contactEmail) + '</a>'].filter(Boolean).join(' · ');
     return '<footer class="foot"><p class="foot__mark">Hughes Living <em>Staging</em></p>' +
+      '<p><a href="gallery.html">See the gallery of looks</a></p>' +
       '<p>Furniture from <a href="' + esc(CFG.storeUrl) + '">Hughes Living Co.</a> and ' +
       '<a href="' + esc(CFG.auctionUrl) + '">Hughes Living Auctions</a>, set up in homes for sale.</p>' +
       (reach ? '<p>' + reach + '</p>' : '') + '</footer>';

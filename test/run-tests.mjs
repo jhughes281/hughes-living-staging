@@ -202,9 +202,20 @@ try {
   ok(portal.houses.length === 0 && !portal.items.some(x => x.id === spare.id), "a second customer sees none of the first one's houses or pieces");
   await refused('select stg_place($1,null,null)', [spare.id], "and cannot move the first customer's piece");
 
+  const AGENT = '44444444-4444-4444-4444-444444444444';
+  await as(null);
+  await db.query(`insert into auth.users (id, email) values ($1,'agent@example.com')`, [AGENT]);
+  await as('authenticated', AGENT);
+  const agent = (await db.query(`select stg_register('realtor','Rae Realtor','Rae Realty','555-0177') a`)).rows[0].a;
+  ok(agent.kind === 'realtor' && agent.studio === 'Rae Realty', 'a realtor account is created, with its brokerage');
+  const listing = (await db.query('select stg_portal_save_house($1) h', [JSON.stringify({ address: '9 Listing Ln', client_name: 'The Seller' })])).rows[0].h;
+  portal = (await db.query('select stg_portal() p')).rows[0].p;
+  ok(portal.houses.length === 1 && portal.houses[0].id === listing.id, 'the realtor sees only their own listing');
+  await refused('select stg_place($1,$2,null)', [spare.id, listing.id], "and cannot take a piece out of the designer's house");
+
   await as('authenticated', STAFF);
   office = (await db.query('select stg_office() o')).rows[0].o;
-  ok(office.accounts.length === 2 && office.houses.length === 2, 'staff see both accounts and every house');
+  ok(office.accounts.length === 3 && office.houses.length === 3, 'staff see all three accounts and every house');
   ok((await db.query('select stg_my_account() a')).rows[0].a.kind === 'owner', 'staff sign in as the owner');
   await db.query('select stg_place($1,null,null)', [spare.id]);
   ok(true, 'staff can move any piece');

@@ -4,6 +4,7 @@
      owner     Hughes Living staff: everything, including cost and Money
      self      someone staging their own house
      designer  an interior designer staging for clients
+     realtor   an agent staging their listings
    Customers see only their own houses and never a cost. That is decided by
    the data layer (api.js / the database), not by this file: a customer's rows
    arrive already filtered, and this file only chooses which controls to draw.
@@ -21,7 +22,9 @@
 
   var D = { houses: [], items: [], requests: [], moves: [], accounts: [], catalog_count: 0 };
   var ME = { signedIn: false, kind: null, staff: false };     // who is signed in
-  var KIND = { owner: 'Hughes Living staff', self: 'Staging it myself', designer: 'Interior designer' };
+  var KIND = { owner: 'Hughes Living staff', self: 'Staging it myself', designer: 'Interior designer', realtor: 'Realtor' };
+  // what each kind calls its business, and the houses it looks after
+  var TRADE = { designer: 'Studio or business name', realtor: 'Brokerage' };
   var F = { q: '', where: 'all', status: 'live' };          // furniture filters
   var view = document.getElementById('view');
   var sheet = document.getElementById('sheet');
@@ -142,7 +145,8 @@
     }).join('');
 
     var title = ME.staff ? 'Where the furniture <em>is</em>'
-      : ME.kind === 'designer' ? 'Your clients&rsquo; <em>houses</em>' : 'Your <em>house</em>';
+      : ME.kind === 'designer' ? 'Your clients&rsquo; <em>houses</em>'
+      : ME.kind === 'realtor' ? 'Your <em>listings</em>' : 'Your <em>house</em>';
     var none = ME.staff ? 'No houses yet. Add the first one, then place furniture in it from the Furniture tab or the house page.'
       : 'Add the house you are staging. Then choose Hughes Living furniture for it, room by room.';
 
@@ -196,7 +200,7 @@
     var reqs = D.requests.filter(function (r) { return r.house_id === h.id; });
     var publicUrl = 'house.html?h=' + encodeURIComponent(h.code);
     var who = ME.staff ? [h.client_name, h.client_phone, h.client_email].filter(Boolean).join(' · ') || 'No client on file'
-                       : (ME.kind === 'designer' ? [h.client_name, h.client_phone, h.client_email].filter(Boolean).join(' · ') || 'No client on file' : '');
+                       : (ME.kind !== 'self' ? [h.client_name, h.client_phone, h.client_email].filter(Boolean).join(' · ') || 'No client on file' : '');
 
     view.innerHTML =
       '<p class="crumb"><a href="#houses">&larr; All houses</a></p>' +
@@ -356,11 +360,11 @@
           var hs = D.houses.filter(function (h) { return String(h.account_id) === String(a.id); });
           var out = hs.reduce(function (t, h) { return t + inHouse(h.id).filter(function (i) { return i.status !== 'sold'; }).length; }, 0);
           return '<tr><td><strong>' + esc(a.name) + '</strong>' + (a.studio ? '<small>' + esc(a.studio) + '</small>' : '') + '</td>' +
-            '<td>' + chip(a.kind === 'designer' ? 'hold' : 'available', KIND[a.kind]) + '</td>' +
+            '<td>' + chip(a.kind === 'self' ? 'available' : 'hold', KIND[a.kind]) + '</td>' +
             '<td>' + (a.email ? '<a href="mailto:' + esc(a.email) + '">' + esc(a.email) + '</a>' : '') + (a.phone ? '<small>' + esc(a.phone) + '</small>' : '') + '</td>' +
             '<td class="num">' + hs.length + '</td><td class="num">' + out + '</td><td>' + fmtDate(a.created_at) + '</td></tr>';
         }).join('') + '</tbody></table></div>'
-        : '<p class="empty">No customer accounts yet. Homeowners and interior designers create their own from the sign-in page.</p>') +
+        : '<p class="empty">No customer accounts yet. Homeowners, interior designers and realtors create their own from the sign-in page.</p>') +
       '<p class="fine">To hand a house to an account, open the house, choose Edit, and set &ldquo;Staged by&rdquo;.</p>';
   }
 
@@ -379,8 +383,9 @@
   function openHouse(h) {
     h = h || { status: 'planned' };
     var client = ME.kind === 'self' ? '' :                    // someone staging their own house is the client
-      field('Client (agent, seller or builder)', 'client_name', h.client_name) +
-      '<div class="pair">' + field('Client phone', 'client_phone', h.client_phone, { type: 'tel' }) + field('Client email', 'client_email', h.client_email, { type: 'email' }) + '</div>';
+      field(ME.kind === 'realtor' ? 'Seller' : 'Client (agent, seller or builder)', 'client_name', h.client_name) +
+      '<div class="pair">' + field(ME.kind === 'realtor' ? 'Seller phone' : 'Client phone', 'client_phone', h.client_phone, { type: 'tel' }) +
+        field(ME.kind === 'realtor' ? 'Seller email' : 'Client email', 'client_email', h.client_email, { type: 'email' }) + '</div>';
     var by = '<option value="">Hughes Living</option>' + D.accounts.map(function (a) {
       return '<option value="' + esc(a.id) + '"' + (String(h.account_id) === String(a.id) ? ' selected' : '') + '>' +
         esc((a.studio || a.name) + ' · ' + KIND[a.kind]) + '</option>';
@@ -414,7 +419,7 @@
     openSheet('<form class="sheet__in" id="authForm" novalidate>' + sheetTop(KIND[kind], title) +
       '<input type="hidden" name="kind" value="' + esc(kind) + '"><input type="hidden" name="mode" value="' + esc(mode) + '">' +
       (up || fin ? field('Your name', 'name', '', { req: true }) +
-        (kind === 'designer' ? field('Studio or business name', 'studio', '') : '') +
+        (TRADE[kind] ? field(TRADE[kind], 'studio', '') : '') +
         field('Phone', 'phone', '', { type: 'tel' }) : '') +
       (fin ? '' : field('Email', 'email', '', { type: 'email', req: true }) +
         field('Password', 'password', '', { type: 'password', req: true, hint: up ? 'At least 8 characters.' : '' })) +
@@ -765,12 +770,14 @@
       '<p class="sub">Choose pieces, place them room by room, and print one QR code for the house. Buyers scan it to see what is for sale.</p></div>' +
       '<img class="door__img" src="img/looks/look-open-plan.webp" alt="A staged open-plan living and dining room" width="1381" height="777"></div>' +
       '<div class="kinds">' +
-        kind('self', 'Staging it myself', 'For a homeowner or an agent getting a house ready to sell.') +
+        kind('self', 'Staging it myself', 'For a homeowner getting their own house ready to sell.') +
         kind('designer', 'Interior designer', 'For designers staging for clients, with several houses going at once.') +
+        kind('realtor', 'Realtor', 'For agents staging their listings, with a QR code for every showing.') +
       '</div>' +
       '<p class="door__staff">Hughes Living staff: <button class="linkbtn" type="button" data-act="door" data-kind="owner" data-mode="in">sign in to the office</button>' +
         (demo ? ' or <button class="linkbtn" type="button" data-act="sample" data-kind="owner">open the sample office</button>' : '') + '</p>' +
-      '<div class="rooms3">' + room('room-living', 'Living room') + room('room-dining', 'Dining room') + room('room-bedroom', 'Bedroom') + '</div></div>';
+      '<div class="rooms3">' + room('room-living', 'Living room') + room('room-dining', 'Dining room') + room('room-bedroom', 'Bedroom') + '</div>' +
+      '<p class="door__more"><a class="btn btn--ghost" href="gallery.html">See the gallery</a></p></div>';
   }
 
   /* Signed in, but not yet a staging customer (an auction bidder, say). */
@@ -779,7 +786,8 @@
       '<p class="sub">You are signed in as ' + esc(ME.email) + '. Pick one to finish your staging account.</p>' +
       '<div class="kind__acts" style="margin-top:1.4rem">' +
       '<button class="btn" type="button" data-act="door" data-kind="self" data-mode="finish">Staging it myself</button>' +
-      '<button class="btn" type="button" data-act="door" data-kind="designer" data-mode="finish">Interior designer</button></div></div>';
+      '<button class="btn" type="button" data-act="door" data-kind="designer" data-mode="finish">Interior designer</button>' +
+      '<button class="btn" type="button" data-act="door" data-kind="realtor" data-mode="finish">Realtor</button></div></div>';
   }
 
   function boot() {

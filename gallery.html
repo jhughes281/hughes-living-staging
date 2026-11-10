@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery · Hughes Living Staging</title>
+<meta name="description" content="Rooms staged the Hughes Living way: living rooms, dining rooms, kitchens and bedrooms, in the looks we set up for homes on the market.">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Courier+Prime:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=10">
+</head>
+<body class="gallery">
+<a class="skip" href="#shots">Skip to the photos</a>
+
+<header class="bar">
+  <div class="wrap bar__in">
+    <a class="mark" href="index.html" aria-label="Hughes Living Staging, sign in">
+      <span class="mark__name">Hughes Living <em>Staging</em></span>
+    </a>
+    <nav class="tabs" aria-label="Pages">
+      <a href="gallery.html" aria-current="page">Gallery</a>
+      <a href="index.html">Sign in</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap view">
+  <div class="head">
+    <div>
+      <p class="eyebrow">Gallery</p>
+      <h1 class="title">Rooms, the way we <em>stage them</em></h1>
+      <p class="sub gallery__sub">Nine looks for a home on the market. Tap any photo to see it full size.</p>
+    </div>
+    <a class="btn" href="index.html">Stage a home</a>
+  </div>
+
+  <div class="shots" id="shots"></div>
+  <p class="fine gallery__fine">Style examples. The furniture in a staged home is listed on that home&rsquo;s own page, by QR code.</p>
+</main>
+
+<dialog class="viewer" id="viewer" aria-label="Photo viewer">
+  <figure class="viewer__fig">
+    <img id="viewerImg" alt="">
+    <figcaption><span id="viewerCap"></span><span class="viewer__n" id="viewerN"></span></figcaption>
+  </figure>
+  <button class="viewer__btn viewer__prev" type="button" id="viewerPrev" aria-label="Previous photo">&larr;</button>
+  <button class="viewer__btn viewer__next" type="button" id="viewerNext" aria-label="Next photo">&rarr;</button>
+  <button class="viewer__btn viewer__x" type="button" id="viewerClose" aria-label="Close">&times;</button>
+</dialog>
+
+<script src="gallery.js?v=1"></script>
+</body>
+</html>

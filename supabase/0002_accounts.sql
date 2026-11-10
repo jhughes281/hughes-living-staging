@@ -4,8 +4,9 @@
 --
 --   self      someone staging their own house (a homeowner, an agent)
 --   designer  an interior designer staging for clients
+--   realtor   an agent staging their listings
 --
--- Both borrow Hughes Living furniture. Each sees only their own houses, the
+-- All three borrow Hughes Living furniture. Each sees only their own houses, the
 -- pieces in them, and what is free in the warehouse to place. Neither ever
 -- sees what a piece cost, the office notes, another customer's houses, or a
 -- buyer's phone number: Hughes Living makes the sale.
@@ -23,9 +24,9 @@
 -- ---------------------------------------------------------------- accounts
 create table if not exists stg_accounts (
   id          uuid primary key references auth.users (id) on delete cascade,
-  kind        text not null check (kind in ('self', 'designer')),
+  kind        text not null check (kind in ('self', 'designer', 'realtor')),
   name        text not null check (length(btrim(name)) > 0),
-  studio      text,            -- a designer's business name
+  studio      text,            -- a designer's studio, a realtor's brokerage
   phone       text,
   email       text,
   created_at  timestamptz not null default now()
@@ -77,8 +78,8 @@ begin
   if auth.uid() is null then
     raise exception 'Sign in first.' using errcode = '42501';
   end if;
-  if p_kind not in ('self', 'designer') then
-    raise exception 'Choose staging it myself or interior designer.' using errcode = '22023';
+  if p_kind not in ('self', 'designer', 'realtor') then
+    raise exception 'Choose staging it myself, interior designer or realtor.' using errcode = '22023';
   end if;
   if v_name = '' then
     raise exception 'Please give your name.' using errcode = '22023';

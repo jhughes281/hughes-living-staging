@@ -16,6 +16,7 @@ and sell the furniture out of the house.
 | Hughes Living staff (`owner`) | everything, incl. cost, Money, Accounts | everything |
 | Staging it myself (`self`) | own houses, free warehouse pieces, prices | add/edit own houses, place and send back pieces, print QR cards |
 | Interior designer (`designer`) | same, across several client houses | same, plus client details per house |
+| Realtor (`realtor`) | same, across their listings | same, plus seller details per listing |
 
 Customers never get cost, office notes, other customers' houses, or a buyer's
 phone/email: those are removed by the data layer before the page receives

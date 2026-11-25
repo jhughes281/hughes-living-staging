@@ -9,7 +9,8 @@
    the data layer (api.js / the database), not by this file: a customer's rows
    arrive already filtered, and this file only chooses which controls to draw.
 
-   Screens over one small dataset: Houses, Furniture, Requests, Money, Accounts.
+   Screens over one small dataset: Home (a customer's dashboard, one per kind
+   of account), Houses, Furniture, Requests, Services, Money, Accounts.
    Everything is loaded in one call (api.office) and re-read after every save,
    so what is on screen is always what the database holds. All arithmetic
    (days out, floor value, profit per house) is done here from those rows. */
@@ -20,7 +21,7 @@
   var API = window.HLS_API, CFG = window.HLS_CONFIG;
   var esc = window.HLS.esc, money = window.HLS.money, safeUrl = window.HLS.safeUrl;
 
-  var D = { houses: [], items: [], requests: [], moves: [], accounts: [], catalog_count: 0 };
+  var D = { houses: [], items: [], requests: [], moves: [], accounts: [], services: [], catalog_count: 0 };
   var ME = { signedIn: false, kind: null, staff: false };     // who is signed in
   var KIND = { owner: 'Hughes Living staff', self: 'Staging it myself', designer: 'Interior designer', realtor: 'Realtor' };
   // what each kind calls its business, and the houses it looks after
@@ -87,7 +88,7 @@
     }).catch(function (e) { toast(e.message || 'That did not save.', true); throw e; });
   }
   function reload() {
-    return API.office().then(function (d) { d.accounts = d.accounts || []; D = d; route(); });
+    return API.office().then(function (d) { d.accounts = d.accounts || []; d.services = d.services || []; D = d; route(); });
   }
 
   /* ---------- small builders ---------- */
@@ -203,7 +204,7 @@
                        : (ME.kind !== 'self' ? [h.client_name, h.client_phone, h.client_email].filter(Boolean).join(' · ') || 'No client on file' : '');
 
     view.innerHTML =
-      '<p class="crumb"><a href="#houses">&larr; All houses</a></p>' +
+      '<p class="crumb"><a href="#houses">&larr; ' + (ME.kind === 'realtor' ? 'All listings' : ME.kind === 'designer' ? 'All projects' : 'All houses') + '</a></p>' +
       '<div class="head head--house"><div><p class="eyebrow">' + esc(h.city || 'House') + ' · code ' + esc(h.code) + '</p>' +
         '<h1 class="title">' + esc(h.address) + '</h1>' +
         (who ? '<p class="sub">' + esc(who) + '</p>' : '') +
@@ -366,6 +367,371 @@
         }).join('') + '</tbody></table></div>'
         : '<p class="empty">No customer accounts yet. Homeowners, interior designers and realtors create their own from the sign-in page.</p>') +
       '<p class="fine">To hand a house to an account, open the house, choose Edit, and set &ldquo;Staged by&rdquo;.</p>';
+  }
+
+  /* ============================================================ dashboards
+     What a customer lands on. One screen per kind of account, because the three
+     are doing different jobs: a homeowner is walking one house through a short
+     list of steps, a designer is juggling several client projects and their
+     dates, and a realtor wants to know which listings have a live QR code and
+     who has scanned it. All three are drawn from the same rows as the other
+     tabs; nothing here is stored. */
+  var HOUSEWORD = { self: 'My house', designer: 'Projects', realtor: 'Listings' };
+  var SSTATUS = { 'new': 'Requested', scheduled: 'Scheduled', done: 'Done', cancelled: 'Cancelled' };
+  var CARPET = (CFG.services || {}).carpet;
+
+  var shortDate = function (s) { return fmtDate(s).replace(/, \d{4}$/, ''); };
+  function daysTo(s) {
+    return s ? Math.round((new Date(s + 'T12:00:00') - new Date(today() + 'T12:00:00')) / DAY) : null;
+  }
+  function inDays(n) {
+    return n === 0 ? 'today' : n === 1 ? 'tomorrow' : n === -1 ? 'yesterday' : n > 0 ? 'in ' + n + ' days' : -n + ' days ago';
+  }
+  var plural = function (n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); };
+  function roomsOf(h) {
+    var by = {};
+    inHouse(h.id).forEach(function (i) { (by[i.room || 'No room set'] = by[i.room || 'No room set'] || []).push(i); });
+    return Object.keys(by).sort().map(function (r) { return { name: r, items: by[r] }; });
+  }
+  function freePieces() { return D.items.filter(function (i) { return i.house_id == null && i.status === 'available'; }); }
+
+  /* What a house still needs from the person signed in, most pressing first. */
+  function nudges(h) {
+    var s = stats(h), out = [], to = daysTo(h.destage_on);
+    var open = { href: '#house/' + h.id };
+    if (h.status === 'planned') {
+      if (!s.pieces) out.push({ t: 'No furniture chosen yet', href: open.href, label: 'Choose furniture' });
+      else {
+        if (!h.staged_on) out.push({ t: 'No day set for the furniture to go in', act: 'edit-house', label: 'Set the day' });
+        out.push({ t: 'Mark it staged once the furniture is in. That opens the QR page', href: open.href, label: 'Open' });
+      }
+    }
+    if (h.status === 'staged') {
+      if (to != null && to < 0) out.push({ t: 'The furniture was due out ' + inDays(to), href: open.href, label: 'Open' });
+      else if (to != null && to <= 7) out.push({ t: 'The furniture comes out ' + inDays(to), href: open.href, label: 'Open' });
+      if (!h.destage_on) out.push({ t: 'No date set for the furniture to come out', act: 'edit-house', label: 'Set the date' });
+      if (!h.cover_url) out.push({ t: 'No cover photo on the buyer page', act: 'edit-house', label: 'Add one' });
+    }
+    if (ME.kind === 'realtor' && h.status !== 'destaged' && !h.listing_url) out.push({ t: 'No listing link', act: 'edit-house', label: 'Add it' });
+    return out;
+  }
+  function doIt(h, n) {
+    return n.href ? '<a href="' + n.href + '">' + esc(n.label) + '</a>'
+      : '<button class="linkbtn" type="button" data-act="' + n.act + '" data-id="' + h.id + '">' + esc(n.label) + '</button>';
+  }
+  function todoList(houses) {
+    var rows = [];
+    houses.forEach(function (h) {
+      nudges(h).forEach(function (n) {
+        rows.push('<li><span><strong>' + esc(h.address) + '</strong>' + esc(n.t) + '</span>' + doIt(h, n) + '</li>');
+      });
+    });
+    return rows.length ? '<ul class="todo">' + rows.join('') + '</ul>' : '<p class="empty">Nothing waiting on you.</p>';
+  }
+
+  /* Buyers' orders and questions, one line each. No phone or email: the data
+     layer never sends those to a customer. */
+  function feed(rows, showHouse, none) {
+    if (!rows.length) return '<p class="empty">' + none + '</p>';
+    return '<ul class="feed">' + rows.map(function (r) {
+      var h = house(r.house_id);
+      var what = r.kind === 'look' ? 'wants the whole look, ' + plural(r.piece_count, 'piece')
+        : r.kind === 'question' ? (r.item_title ? 'asked about the ' + r.item_title : 'asked a question')
+        : 'wants the ' + r.item_title;
+      return '<li><time>' + shortDate(r.created_at) + '</time><span><strong>' + esc(r.name) + '</strong> ' + esc(what) +
+        (showHouse && h ? '<small>' + esc(h.address) + '</small>' : '') + '</span>' +
+        chip(r.status === 'new' ? 'new' : 'hold', RSTATUS[r.status]) + '</li>';
+    }).join('') + '</ul>' +
+    '<p class="fine">Hughes Living follows up with each buyer and takes the payment. <a href="#requests">All requests</a></p>';
+  }
+
+  function svcBand(line) {
+    if (!CARPET) return '';
+    return '<aside class="svc"><div><p class="eyebrow">Service</p><h2 class="svc__h">' + line + '</h2>' +
+      '<p>' + esc(CARPET.name) + '. First room ' + money(CARPET.firstRoomCents) + ', each room after that ' + money(CARPET.extraRoomCents) + '.</p></div>' +
+      '<a class="btn btn--ghost" href="#services">Request a cleaning</a></aside>';
+  }
+  function qrActs(h) {
+    var code = encodeURIComponent(h.code);
+    return '<a class="btn" href="card.html?h=' + code + '" target="_blank" rel="noopener">QR card &amp; tags</a>' +
+      (h.status === 'staged'
+        ? '<a class="btn btn--ghost" href="house.html?h=' + code + '" target="_blank" rel="noopener">Buyer page</a>' +
+          '<button class="btn btn--ghost" type="button" data-act="copy-link" data-code="' + esc(h.code) + '">Copy buyer link</button>' : '');
+  }
+
+  /* ---------- staging it myself: one house, a short list of steps ---------- */
+  function renderHomeSelf() {
+    var h = D.houses.filter(function (x) { return x.status !== 'destaged'; })[0] || D.houses[0];
+    var s = h ? stats(h) : null, rooms = h ? roomsOf(h) : [];
+    var cleaning = h && D.services.filter(function (v) { return v.house_id === h.id && v.status !== 'cancelled'; })[0];
+    var out = h ? daysTo(h.destage_on) : null;
+    var hid = h ? h.id : '';
+
+    var steps = [
+      { t: 'Add your house', done: !!h,
+        d: h ? esc(h.address) + (h.city ? ', ' + esc(h.city) : '') : 'The address, and the dates if you know them.',
+        a: '<button class="btn" type="button" data-act="new-house">Add your house</button>' },
+      { t: 'Choose your furniture', done: !!h && s.pieces > 0,
+        d: h && s.pieces ? plural(s.pieces, 'piece') + ' in ' + plural(rooms.length, 'room') + ', ' + money(s.floor, '$0') + ' at tag price.'
+          : plural(freePieces().length, 'piece') + ' free in the Hughes Living warehouse right now.',
+        a: '<a class="btn" href="#house/' + hid + '">Choose furniture</a>',
+        more: h && s.pieces ? '<a href="#house/' + hid + '">Change the furniture</a>' : '' },
+      { t: 'Get the carpets cleaned', opt: true, done: !!cleaning, s: cleaning ? SSTATUS[cleaning.status] : '',
+        d: cleaning ? SSTATUS[cleaning.status] + (cleaning.preferred_on ? ', asked for ' + shortDate(cleaning.preferred_on) : '') + '. ' + money(cleaning.estimate_cents) + ' estimate.'
+          : 'Before the furniture goes in. ' + (CARPET ? 'First room ' + money(CARPET.firstRoomCents) + ' with ' + esc(CARPET.name) + '.' : ''),
+        more: h ? '<a href="#services">' + (cleaning ? 'See the request' : 'Request a cleaning') + '</a>' : '' },
+      { t: 'Staging fee', wait: true, done: !!h && h.fee_cents > 0, s: h && h.fee_cents ? 'Set' : '',
+        d: h && h.fee_cents ? money(h.fee_cents) + ', set by Hughes Living.' : 'Hughes Living sets this. Not set yet.' },
+      { t: 'Mark the house staged', done: !!h && h.status !== 'planned',
+        d: h && h.status !== 'planned' ? 'Staged ' + (h.staged_on ? shortDate(h.staged_on) : '') + '. The QR code is ' + (h.status === 'staged' ? 'live.' : 'closed.')
+          : 'Once the furniture is in. That opens the page buyers see when they scan the QR code.',
+        a: '<button class="btn" type="button" data-act="house-status" data-id="' + hid + '" data-v="staged">Mark it staged</button>' },
+      { t: 'The furniture comes out', done: !!h && h.status === 'destaged',
+        d: h && h.destage_on ? shortDate(h.destage_on) + (h.status === 'staged' ? ', ' + inDays(out) + '.' : '.') : 'No date set yet.',
+        a: h && !h.destage_on ? '<button class="btn" type="button" data-act="edit-house" data-id="' + hid + '">Set the date</button>'
+          : '<button class="btn btn--ghost" type="button" data-act="house-status" data-id="' + hid + '" data-v="destaged">Mark it destaged</button>' }
+    ];
+    var next = -1;
+    steps.forEach(function (st, k) { if (next < 0 && !st.done && !st.opt && !st.wait) next = k; });
+
+    var stepHtml = '<ol class="steps">' + steps.map(function (st, k) {
+      var state = st.done ? 'done' : k === next ? 'next' : 'later';
+      var label = st.s ? st.s : st.done ? 'Done' : k === next ? 'Next' : st.opt ? 'Optional' : st.wait ? 'Hughes Living' : '';
+      return '<li class="step step--' + state + '"><span class="step__n" aria-hidden="true">' + (st.done ? '&#10003;' : k + 1) + '</span>' +
+        '<div class="step__b"><h2 class="step__t">' + st.t + (label ? ' <span class="step__s">' + label + '</span>' : '') + '</h2>' +
+        '<p>' + st.d + '</p>' +
+        (k === next && st.a ? '<p class="step__a">' + st.a + '</p>' : (st.more && (h || k === 0) ? '<p class="step__a">' + st.more + '</p>' : '')) +
+        '</div></li>';
+    }).join('') + '</ol>';
+
+    var title = !h ? 'Let&rsquo;s get your house <em>ready</em>'
+      : h.status === 'staged' ? 'Your house is <em>staged</em>'
+      : h.status === 'destaged' ? 'Your staging has <em>ended</em>' : 'Getting your house <em>ready</em>';
+
+    var side = !h
+      ? '<img class="dash__img" src="img/looks/room-living.webp" alt="A staged living room" width="640" height="800" loading="lazy">' +
+        '<p class="fine">A style example, not a real staging.</p>'
+      : (safeUrl(h.cover_url) ? '<img class="dash__img dash__img--wide" src="' + esc(safeUrl(h.cover_url)) + '" alt="Cover photo of ' + esc(h.address) + '" loading="lazy">' : '') +
+        '<dl class="facts facts--2">' +
+          '<div><dt>Pieces here</dt><dd>' + s.pieces + '</dd></div>' +
+          '<div><dt>At tag price</dt><dd>' + money(s.floor, '$0') + '</dd></div>' +
+          '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + ' <small>' + s.soldN + ' pc</small></dd></div>' +
+          '<div><dt>Staged</dt><dd>' + (s.days != null && h.status !== 'planned' ? s.days + ' <small>days</small>' : 'Not yet') + '</dd></div>' +
+        '</dl>' +
+        (h.status !== 'planned' ? '<div class="head__acts dash__acts">' + qrActs(h) + '</div>' : '') +
+        '<h2 class="h2">Buyers</h2>' +
+        feed(D.requests.filter(function (r) { return r.house_id === h.id; }).slice(0, 4), false,
+          'Nobody yet. When a buyer scans the QR code and taps &ldquo;Buy this piece&rdquo;, it shows here.');
+
+    var roomHtml = rooms.length ? '<h2 class="h2">Room by room</h2><div class="roomsum">' + rooms.map(function (r) {
+      return '<a class="roomsum__r" href="#house/' + h.id + '"><span class="roomsum__n">' + esc(r.name) + '</span>' +
+        '<span class="roomsum__t">' + r.items.slice(0, 5).map(function (i) { return thumb(i, 'thumb thumb--sm'); }).join('') + '</span>' +
+        '<span class="num">' + plural(r.items.length, 'piece') + '</span>' +
+        '<span class="num">' + money(sum(r.items.filter(function (i) { return i.status !== 'sold'; }), 'price_cents'), '$0') + '</span></a>';
+    }).join('') + '</div>' : '';
+
+    view.innerHTML =
+      '<div class="head"><div><p class="eyebrow">' + (h ? esc(h.address) : 'Staging it myself') + '</p><h1 class="title">' + title + '</h1>' +
+        (D.houses.length > 1 ? '<p class="sub">You have ' + D.houses.length + ' houses. <a href="#houses">See them all</a></p>' : '') + '</div>' +
+        (h ? '<div class="head__acts"><a class="btn btn--ghost" href="#house/' + h.id + '">Open the house</a></div>' : '') + '</div>' +
+      '<div class="dash"><div>' + stepHtml + '</div><aside>' + side + '</aside></div>' +
+      roomHtml;
+  }
+
+  /* ---------- interior designer: several client projects and their dates ---------- */
+  function renderHomeDesigner() {
+    var staged = D.houses.filter(function (h) { return h.status === 'staged'; });
+    var live = D.houses.filter(function (h) { return h.status !== 'destaged'; });
+    var out = D.items.filter(function (i) { return i.house_id != null && i.status !== 'sold' && i.status !== 'retired'; });
+    var free = freePieces();
+
+    var card = function (h) {
+      var s = stats(h), n = nudges(h)[0], to = daysTo(h.destage_on), go = daysTo(h.staged_on);
+      var date = h.status === 'planned' ? (h.staged_on ? 'Goes in ' + shortDate(h.staged_on) + ', ' + inDays(go) : 'No go-in day set')
+        : h.status === 'staged' ? (h.destage_on ? 'Comes out ' + shortDate(h.destage_on) + ', ' + inDays(to) : 'Staged ' + plural(s.days, 'day'))
+        : 'Came out ' + (h.destage_on ? shortDate(h.destage_on) : '');
+      return '<a class="pcard" href="#house/' + h.id + '">' + thumb({ photo_url: h.cover_url }, 'pcard__img') +
+        '<strong>' + esc(h.address) + '</strong>' +
+        '<small>' + esc([h.client_name, h.city].filter(Boolean).join(' · ') || 'No client on file') + '</small>' +
+        '<span class="pcard__m">' + plural(s.pieces, 'piece') + ' · ' + plural(roomsOf(h).length, 'room') + ' · ' + money(s.floor, '$0') + '</span>' +
+        '<span class="pcard__d">' + esc(date) + '</span>' +
+        (s.newReq ? '<span class="pcard__d pcard__d--flag">' + plural(s.newReq, 'new buyer request') + '</span>' : '') +
+        (n ? '<span class="pcard__n">' + esc(n.t) + '</span>' : '') + '</a>';
+    };
+    var col = function (k, none) {
+      var hs = D.houses.filter(function (h) { return h.status === k; });
+      return '<section class="board__c"><h2 class="board__h">' + HSTATUS[k] + ' <span>' + hs.length + '</span></h2>' +
+        (hs.length ? hs.map(card).join('') : '<p class="board__none">' + none + '</p>') + '</section>';
+    };
+
+    // dated things in the next six weeks, plus anything overdue
+    var ev = [];
+    D.houses.forEach(function (h) {
+      if (h.status === 'planned' && h.staged_on) ev.push({ on: h.staged_on, t: 'Furniture goes in', h: h });
+      if (h.status === 'staged' && h.destage_on) ev.push({ on: h.destage_on, t: 'Furniture comes out', h: h });
+    });
+    D.services.forEach(function (v) {
+      var h = house(v.house_id);
+      if (h && v.preferred_on && (v.status === 'new' || v.status === 'scheduled')) {
+        ev.push({ on: v.preferred_on, t: 'Carpet cleaning, ' + SSTATUS[v.status].toLowerCase(), h: h });
+      }
+    });
+    ev = ev.filter(function (e) { return daysTo(e.on) <= 42; }).sort(function (a, b) { return a.on < b.on ? -1 : 1; });
+    var evHtml = ev.length ? '<ul class="events">' + ev.map(function (e) {
+      var n = daysTo(e.on);
+      return '<li' + (n < 0 ? ' class="is-late"' : '') + '><time>' + shortDate(e.on) + '</time>' +
+        '<span><strong>' + esc(e.t) + '</strong><a href="#house/' + e.h.id + '">' + esc(e.h.address) + '</a></span>' +
+        '<span class="events__in">' + inDays(n) + '</span></li>';
+    }).join('') + '</ul>' : '<p class="empty">No dates in the next six weeks. Set a go-in or come-out day on a house and it shows here.</p>';
+
+    view.innerHTML =
+      '<div class="head"><div><p class="eyebrow">' + esc(ME.studio || 'Interior designer') + '</p><h1 class="title">Your <em>projects</em></h1></div>' +
+        '<div class="head__acts"><button class="btn" type="button" data-act="new-house">Add a house</button></div></div>' +
+      '<dl class="facts">' +
+        '<div><dt>Staged now</dt><dd>' + staged.length + ' <small>' + (staged.length === 1 ? 'house' : 'houses') + '</small></dd></div>' +
+        '<div><dt>Being planned</dt><dd>' + (live.length - staged.length) + '</dd></div>' +
+        '<div><dt>Pieces out</dt><dd>' + out.length + '</dd></div>' +
+        '<div><dt>Their price tags</dt><dd>' + money(sum(out, 'price_cents'), '$0') + '</dd></div>' +
+        '<div><dt>Free to place</dt><dd>' + free.length + ' <small>in the warehouse</small></dd></div>' +
+      '</dl>' +
+      (D.houses.length
+        ? '<div class="board">' + col('planned', 'Nothing being planned.') + col('staged', 'Nothing staged right now.') + col('destaged', 'No finished projects yet.') + '</div>'
+        : '<p class="empty">No projects yet. Add a client&rsquo;s house, then choose Hughes Living furniture for it room by room.</p>') +
+      '<div class="cols"><div>' +
+        '<h2 class="h2">Coming up</h2>' + evHtml +
+        '<h2 class="h2">Waiting on you</h2>' + todoList(live) +
+      '</div><aside>' +
+        '<h2 class="h2">Free in the warehouse</h2>' +
+        (free.length ? '<div class="wh">' + free.slice(0, 6).map(function (i) {
+            return '<div class="wh__i">' + thumb(i, 'wh__img') + '<span>' + esc(i.title) + '</span><span class="num">' + money(i.price_cents, '') + '</span></div>';
+          }).join('') + '</div><p class="fine"><a href="#furniture">All ' + plural(free.length, 'free piece') + '</a>. Place them from a house&rsquo;s page.</p>'
+          : '<p class="empty">Nothing is free in the Hughes Living warehouse right now.</p>') +
+        '<h2 class="h2">Buyers</h2>' +
+        feed(D.requests.slice(0, 4), true, 'Nobody yet. Orders from your staged houses show here.') +
+      '</aside></div>' +
+      svcBand('Carpets cleaned before install day');
+  }
+
+  /* ---------- realtor: which listings have a live QR code, and who scanned ---------- */
+  function renderHomeRealtor() {
+    var live = D.houses.filter(function (h) { return h.status !== 'destaged'; });
+    var rows = D.houses.map(function (h) {
+      var s = stats(h), to = daysTo(h.destage_on);
+      var reqs = D.requests.filter(function (r) { return r.house_id === h.id; });
+      var qr = { planned: 'The QR page opens when this listing is marked staged.',
+                 staged: 'The QR page is open. Buyers who scan see every piece and its price.',
+                 destaged: 'The staging has ended and the QR page says so.' }[h.status];
+      return '<article class="lrow">' +
+        '<a class="lrow__pic" href="#house/' + h.id + '" tabindex="-1" aria-hidden="true">' + thumb({ photo_url: h.cover_url }, 'lrow__img') + '</a>' +
+        '<div class="lrow__b"><h2 class="lrow__t"><a href="#house/' + h.id + '">' + esc(h.address) + '</a> ' + chip(h.status, HSTATUS[h.status]) + '</h2>' +
+        '<p class="lrow__who">' + esc([h.client_name ? 'Seller: ' + h.client_name : 'No seller on file', h.city].filter(Boolean).join(' · ')) + '</p>' +
+        '<p class="lrow__qr">' + qr + '</p>' +
+        '<dl class="lrow__nums">' +
+          '<div><dt>Staged</dt><dd>' + (h.status === 'planned' || s.days == null ? '–' : s.days + ' <small>days</small>') + '</dd></div>' +
+          '<div><dt>Buyer requests</dt><dd>' + reqs.length + (s.newReq ? ' <small class="is-flag">' + s.newReq + ' new</small>' : '') + '</dd></div>' +
+          '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + '</dd></div>' +
+          '<div><dt>Comes out</dt><dd>' + (h.destage_on ? shortDate(h.destage_on) + (h.status === 'staged' ? ' <small>' + inDays(to) + '</small>' : '') : '–') + '</dd></div>' +
+        '</dl>' +
+        '<div class="head__acts">' + qrActs(h) + '</div></div></article>';
+    }).join('');
+
+    view.innerHTML =
+      '<div class="head"><div><p class="eyebrow">' + esc(ME.studio || 'Realtor') + '</p><h1 class="title">Your <em>listings</em></h1></div>' +
+        '<div class="head__acts"><button class="btn" type="button" data-act="new-house">Add a listing</button></div></div>' +
+      (D.houses.length ? '<div class="lrows">' + rows + '</div>'
+        : '<p class="empty">No listings yet. Add one, choose Hughes Living furniture for it, and print a QR code for the showings.</p>') +
+      '<div class="cols"><div>' +
+        '<h2 class="h2">Who scanned</h2>' +
+        feed(D.requests.slice(0, 8), true, 'Nobody yet. When a buyer scans a QR code at a showing and asks for a piece, it shows here.') +
+      '</div><aside>' +
+        '<h2 class="h2">Waiting on you</h2>' + todoList(live) +
+      '</aside></div>' +
+      svcBand('Carpets cleaned before the listing photos');
+  }
+
+  function renderHome() {
+    if (ME.kind === 'designer') renderHomeDesigner();
+    else if (ME.kind === 'realtor') renderHomeRealtor();
+    else renderHomeSelf();
+  }
+
+  /* ============================================================== services
+     A request to the office, like a buyer's order: no booking is made and no
+     money moves. The running total is for show; the data layer prices it again. */
+  function svcSummary(v) {
+    try { return window.HLS.carpetQuote(v.rooms, v.addons).lines.map(function (l) { return l.label; }).join(' + '); }
+    catch (e) { return plural(v.rooms, 'room'); }
+  }
+  function svcCard(v) {
+    var h = house(v.house_id), a = ME.staff && v.account_id != null && account(v.account_id);
+    return '<article class="req' + (ME.staff && v.status === 'new' ? ' req--new' : '') + '">' +
+      '<header><strong>' + esc(h ? h.address : 'A house that was deleted') + '</strong><time>' + fmtDate(v.created_at) + '</time></header>' +
+      '<p class="req__what">Carpet cleaning: ' + esc(svcSummary(v)) + '</p>' +
+      '<p><span class="tagno">' + money(v.estimate_cents) + '</span> estimate' + (v.preferred_on ? ' · asked for ' + fmtDate(v.preferred_on) : '') + '</p>' +
+      (v.note ? '<p class="req__note">&ldquo;' + esc(v.note) + '&rdquo;</p>' : '') +
+      (ME.staff
+        ? '<p class="req__reach">Asked by ' + (a ? esc(a.studio || a.name) + (a.email ? ' · <a href="mailto:' + esc(a.email) + '">' + esc(a.email) + '</a>' : '') : 'Hughes Living') + '</p>' +
+          '<label class="vh" for="sv' + v.id + '">Status of the cleaning at ' + esc(h ? h.address : 'a deleted house') + '</label>' +
+          '<select class="mini" id="sv' + v.id + '" data-act="svc-status" data-id="' + v.id + '">' + opts(SSTATUS, v.status) + '</select>'
+        : '<p class="req__reach">' + chip(v.status === 'scheduled' ? 'staged' : v.status === 'new' ? 'hold' : 'x', SSTATUS[v.status]) +
+          (v.status === 'new' ? ' <button class="linkbtn" type="button" data-act="cancel-service" data-id="' + v.id + '">Cancel this request</button>' : '') + '</p>') +
+    '</article>';
+  }
+  function svcSum() {
+    var form = document.getElementById('svcForm'), box = document.getElementById('svcSum');
+    if (!form || !box) return;
+    var picks = Array.prototype.filter.call(form.querySelectorAll('[name=addon]'), function (c) { return c.checked; })
+      .map(function (c) { return c.value; });
+    var q = window.HLS.carpetQuote(form.elements.rooms.value, picks);
+    box.innerHTML = q.lines.length
+      ? q.lines.map(function (l) { return '<div><span>' + esc(l.label) + '</span><span class="num">' + money(l.cents) + '</span></div>'; }).join('') +
+        '<div class="est__t"><span>Estimate</span><span class="num">' + money(q.total_cents) + '</span></div>'
+      : '<div><span>Choose at least one room or add-on.</span></div>';
+  }
+  function renderServices() {
+    if (!CARPET) { view.innerHTML = '<p class="empty">No services are set up.</p>'; return; }
+    var houses = D.houses.filter(function (h) { return h.status !== 'destaged'; });
+    var roomOpts = '';
+    for (var n = 0; n <= CARPET.maxRooms; n++) roomOpts += '<option value="' + n + '"' + (n === 3 ? ' selected' : '') + '>' + (n ? plural(n, 'room') : 'No rooms, add-ons only') + '</option>';
+
+    var form = houses.length
+      ? '<form class="svcform" id="svcForm" novalidate>' +
+          field(ME.kind === 'realtor' ? 'Listing' : 'House', 'house_id', '', { select: houses.map(function (h) {
+            return '<option value="' + h.id + '">' + esc(h.address) + '</option>'; }).join('') }) +
+          field('Carpeted rooms', 'rooms', '', { select: roomOpts, hint: 'First room ' + money(CARPET.firstRoomCents) + ', each room after that ' + money(CARPET.extraRoomCents) + '.' }) +
+          '<fieldset class="adds"><legend>Add-ons</legend>' + CARPET.addons.map(function (a) {
+            return '<label class="place__row"><input type="checkbox" name="addon" value="' + esc(a.key) + '"><span>' + esc(a.label) + '</span><span class="num">' + money(a.cents) + '</span></label>';
+          }).join('') + '</fieldset>' +
+          field('Day you would like', 'preferred_on', '', { type: 'date', hint: 'A request. The day is confirmed with you.' }) +
+          field('Anything the crew should know', 'note', '', { area: true, ph: 'Stains to look at, pets, where to park' }) +
+          '<div class="est" id="svcSum" aria-live="polite"></div>' +
+          '<p class="sheet__err" role="alert"></p>' +
+          '<button class="btn btn--block" type="submit">Send the request</button>' +
+          '<p class="fine">This is a request, not a booking, and no payment is taken here. Hughes Living arranges the visit and confirms the day with you. The estimate uses Richard&rsquo;s posted prices; the final price is confirmed at the house.</p>' +
+        '</form>'
+      : '<p class="empty">Add a house first, then come back to request a cleaning for it. <a href="#houses">Go to houses</a></p>';
+
+    var list = D.services.length ? '<div class="reqs">' + D.services.map(svcCard).join('') + '</div>'
+      : '<p class="empty">' + (ME.staff ? 'No one has asked for a cleaning yet.' : 'You have not asked for a cleaning yet.') + '</p>';
+
+    var about =
+      '<img class="provider__img" src="img/services/richards-truck-mount.jpg" alt="The truck-mount cleaning unit in Richard&rsquo;s van" width="830" height="824" loading="lazy">' +
+      '<h2 class="h2">' + esc(CARPET.name) + '</h2>' +
+      '<p>Truck-mount steam cleaning for carpet and upholstery. Carpets get cleaned while the house is empty, before the furniture goes in.</p>' +
+      '<dl class="prices"><div><dt>First room</dt><dd>' + money(CARPET.firstRoomCents) + '</dd></div>' +
+        '<div><dt>Each room after that</dt><dd>' + money(CARPET.extraRoomCents) + '</dd></div>' +
+        CARPET.addons.map(function (a) { return '<div><dt>' + esc(a.label) + '</dt><dd>' + money(a.cents) + '</dd></div>'; }).join('') + '</dl>' +
+      '<p class="fine"><a href="' + esc(CARPET.url) + '" target="_blank" rel="noopener">Richard&rsquo;s own site</a> has tile, rugs and everything else he does.</p>';
+
+    var mine = (ME.staff ? '' : '<h2 class="h2">Your requests</h2>') + list;
+    view.innerHTML =
+      '<div class="head"><div><p class="eyebrow">Services</p><h1 class="title">' +
+        (ME.staff ? 'Cleanings customers have <em>asked for</em>' : 'Clean carpets before the furniture goes <em>in</em>') + '</h1></div></div>' +
+      (ME.staff ? mine : '') +
+      '<div class="cols cols--svc"><div class="provider">' + about + '</div><aside>' +
+        '<h2 class="h2">' + (ME.staff ? 'Request one for a house' : 'Request a cleaning') + '</h2>' + form + '</aside></div>' +
+      (ME.staff ? '' : mine);
+    svcSum();
   }
 
   /* ================================================================ sheets */
@@ -589,6 +955,14 @@
       if (h.status === 'destaged' && !h.destage_on) h.destage_on = today();
       run(API.saveHouse(h), 'House marked ' + HSTATUS[h.status].toLowerCase() + '.').catch(function () {});
     }
+    else if (act === 'copy-link') {
+      var link = window.HLS.houseUrl(el.getAttribute('data-code'));
+      (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
+        .then(function () { toast('Buyer link copied.'); }, function () { prompt('Copy the buyer link:', link); });
+    }
+    else if (act === 'cancel-service') {
+      if (confirm('Cancel this cleaning request?')) run(API.setService(id, 'cancelled'), 'Request cancelled.').catch(function () {});
+    }
     else if (act === 'send-back') {
       run(API.placeItem(id, null, null), 'Moved out of the house.').catch(function () {});
     }
@@ -624,6 +998,8 @@
       run(API.saveItem(Object.assign({}, item(id), { status: el.value })), 'Marked ' + STATUS[el.value].toLowerCase() + '.').catch(function () {});
     }
     else if (act === 'req-status') run(API.setRequest(id, el.value), 'Request updated.').catch(function () {});
+    else if (act === 'svc-status') run(API.setService(id, el.value), 'Cleaning marked ' + SSTATUS[el.value].toLowerCase() + '.').catch(function () {});
+    else if (el.form && el.form.getAttribute('id') === 'svcForm') svcSum();
     else if (el.id === 'fw') { F.where = el.value; renderFurniture(); }
     else if (el.id === 'fs') { F.status = el.value; renderFurniture(); }
     else if (el.id === 'f_status' && el.form && el.form.getAttribute('id') === 'itemForm') document.getElementById('soldBox').hidden = el.value !== 'sold';
@@ -719,6 +1095,15 @@
       }, Promise.resolve());
       run(chain, picks.length + ' piece' + (picks.length > 1 ? 's' : '') + ' placed.').catch(function () {}).then(function () { busy(false); });
     }
+    else if (fid === 'svcForm') {
+      var adds = Array.prototype.filter.call(form.querySelectorAll('[name=addon]'), function (c) { return c.checked; })
+        .map(function (c) { return c.value; });
+      if (!Number(f.rooms) && !adds.length) { err.textContent = 'Choose at least one room or add-on.'; return; }
+      busy(true); err.textContent = '';
+      run(API.requestService({ house_id: Number(f.house_id), rooms: Number(f.rooms), addons: adds, preferred_on: f.preferred_on, note: f.note }),
+          'Request sent. Hughes Living will confirm the day.')
+        .catch(function (x) { err.textContent = x.message; busy(false); });
+    }
     else if (fid === 'authForm') {
       busy(true); err.textContent = '';
       var go = f.mode === 'finish' ? API.register(f)
@@ -732,18 +1117,24 @@
 
   /* ================================================================ routing */
   function route() {
-    var parts = (location.hash || '#houses').slice(1).split('/');
-    if (!ME.staff && (parts[0] === 'money' || parts[0] === 'accounts')) parts = ['houses'];   // nothing to show a customer there
+    var parts = (location.hash || (ME.staff ? '#houses' : '#home')).slice(1).split('/');
+    if (!ME.staff && (parts[0] === 'money' || parts[0] === 'accounts')) parts = ['home'];   // nothing to show a customer there
+    if (ME.staff && parts[0] === 'home') parts = ['houses'];                                // the office has no dashboard
     var tab = parts[0] === 'house' ? 'houses' : parts[0];
     Array.prototype.forEach.call(document.querySelectorAll('#tabs a'), function (a) {
-      a.hidden = a.hasAttribute('data-staff') && !ME.staff;
+      a.hidden = (a.hasAttribute('data-staff') && !ME.staff) || (a.hasAttribute('data-cust') && ME.staff);
       a.getAttribute('data-tab') === tab ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current');
     });
     var n = D.requests.filter(function (r) { return r.status === 'new'; }).length;
     var badge = document.getElementById('reqCount');
     badge.hidden = !n; badge.textContent = n;
+    var sn = ME.staff ? D.services.filter(function (v) { return v.status === 'new'; }).length : 0;
+    var sbadge = document.getElementById('svcCount');
+    sbadge.hidden = !sn; sbadge.textContent = sn;
 
-    if (parts[0] === 'house') renderHouse(Number(parts[1]));
+    if (parts[0] === 'home') renderHome();
+    else if (parts[0] === 'services') renderServices();
+    else if (parts[0] === 'house') renderHouse(Number(parts[1]));
     else if (parts[0] === 'furniture') renderFurniture();
     else if (parts[0] === 'requests') renderRequests();
     else if (parts[0] === 'money') renderMoney();
@@ -752,8 +1143,10 @@
   }
 
   /* The front door: two kinds of customer, and a quiet line for staff. */
+  var atDoor = false;
   function doorView() {
     var demo = API.name === 'demo';
+    atDoor = true;
     var kind = function (k, h, p) {
       return '<section class="kind"><h2>' + h + '</h2><p>' + p + '</p><div class="kind__acts">' +
         '<button class="btn" type="button" data-act="door" data-kind="' + k + '" data-mode="in">Sign in</button>' +
@@ -797,10 +1190,16 @@
       document.getElementById('tabs').hidden = !s.kind;
       document.getElementById('signOut').hidden = !s.signedIn;
       who.hidden = !s.kind;
-      who.textContent = s.kind ? (s.studio || s.name || s.email) + ' · ' + KIND[s.kind] : '';
+      who.textContent = !s.kind ? '' : (s.studio || s.name || s.email) + (s.staff ? ' · ' + KIND[s.kind] : '');   // a customer's kind is already beside the name of the site
       document.querySelector('.mark__role').textContent = s.kind && !s.staff ? KIND[s.kind] : 'Office';
+      document.querySelector('.mark').setAttribute('href', s.kind && !s.staff ? '#home' : '#houses');
+      document.getElementById('tabHouses').textContent = HOUSEWORD[s.kind] || 'Houses';
       if (!s.signedIn) return doorView();
       if (!s.kind) return finishView();
+      if (atDoor) {                       // just came through the door: start on this account's first screen
+        atDoor = false;
+        history.replaceState(null, '', location.pathname + location.search + (s.staff ? '#houses' : '#home'));
+      }
       return reload();
     }).catch(function (e) {
       view.innerHTML = '<div class="door"><p class="eyebrow">Hughes Living Staging</p><h1 class="title">This page could not <em>open</em></h1><p class="sheet__err">' +
@@ -815,7 +1214,7 @@
   sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
   window.addEventListener('hashchange', function () { if (ME.kind) route(); window.scrollTo(0, 0); });
   document.getElementById('signOut').addEventListener('click', function () {
-    API.signOut().then(function () { location.hash = '#houses'; return boot(); });
+    API.signOut().then(function () { history.replaceState(null, '', location.pathname + location.search); return boot(); });
   });
   document.getElementById('demoNote').hidden = API.name !== 'demo';
 

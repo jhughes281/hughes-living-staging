@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Courier+Prime:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=10">
+<link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body class="office">
 <a class="skip" href="#view">Skip to the page</a>
@@ -21,9 +21,11 @@
       <span class="mark__role">Office</span>
     </a>
     <nav class="tabs" id="tabs" aria-label="Sections" hidden>
-      <a href="#houses" data-tab="houses">Houses</a>
+      <a href="#home" data-tab="home" data-cust>Home</a>
+      <a href="#houses" data-tab="houses" id="tabHouses">Houses</a>
       <a href="#furniture" data-tab="furniture">Furniture</a>
       <a href="#requests" data-tab="requests">Requests <span class="tabs__n" id="reqCount" hidden></span></a>
+      <a href="#services" data-tab="services">Services <span class="tabs__n" id="svcCount" hidden></span></a>
       <a href="#money" data-tab="money" data-staff>Money</a>
       <a href="#accounts" data-tab="accounts" data-staff>Accounts</a>
     </nav>
@@ -44,8 +46,8 @@
 <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"></dialog>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="config.js?v=3"></script>
-<script src="api.js?v=6"></script>
-<script src="app.js?v=8"></script>
+<script src="config.js?v=4"></script>
+<script src="api.js?v=7"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

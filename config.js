@@ -36,6 +36,28 @@
 
     // Shown on the buyer page when filled in. Left empty until Jay supplies them.
     contactPhone: '',
-    contactEmail: ''
+    contactEmail: '',
+
+    // Services a signed-in customer can ask for, for one of their houses.
+    // Carpet prices are a copy of Richard's own price book
+    // (richards-carpet-cleaning/supabase/functions/_shared/pricing.js) and of
+    // stg_carpet_estimate() in supabase/0003_services.sql. A test compares all
+    // three, so change them together.
+    services: {
+      carpet: {
+        name: "Richard's Carpet Cleaning & Upholstery",
+        url: 'https://jhughes281.github.io/richards-carpet-cleaning/',
+        maxRooms: 8,
+        firstRoomCents: 7900,
+        extraRoomCents: 2000,
+        addons: [
+          { key: 'addon_hall', label: 'Hallway', cents: 2500 },
+          { key: 'addon_stairs', label: 'Stairs', cents: 4500 },
+          { key: 'addon_pet', label: 'Pet treatment', cents: 4900 },
+          { key: 'addon_scotchgard', label: 'Scotchgard', cents: 3900 },
+          { key: 'addon_sofa', label: 'Sofa or loveseat', cents: 7900 }
+        ]
+      }
+    }
   };
 })();

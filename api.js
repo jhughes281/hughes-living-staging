@@ -24,7 +24,13 @@
      sendRequest(code, tagNo, name, phone, email, note, kind)
                                kind: 'piece' (buy one), 'look' (buy every piece
                                still available in the house) or 'question'.
-                               Takes no money: it is an order for the office. */
+                               Takes no money: it is an order for the office.
+     requestService({ house_id, rooms, addons, preferred_on, note })
+                               ask for carpet cleaning at one of my houses. The
+                               estimate is priced by the data layer, not the page.
+     setService(id, status)    staff: any status. A customer: cancel their own
+                               request while it is still new.
+     office() also returns services: the caller's own, or all of them for staff. */
 
 (function (global) {
   'use strict';
@@ -35,9 +41,30 @@
   var txt = function (v) { v = v == null ? '' : String(v).trim(); return v === '' ? null : v; };
   var int = function (v) { v = txt(v); return v == null ? null : Math.round(Number(v)); };
 
+  /* Richard's posted prices: first room, a flat amount for each one after it,
+     then flat add-ons. Used by the page (to show the running total) and by the
+     demo backend; the database has its own copy and does not trust this one. */
+  function carpetQuote(rooms, addons) {
+    var book = (CFG.services || {}).carpet;
+    if (!book) throw fail('Carpet cleaning is not set up.');
+    rooms = Math.trunc(Number(rooms) || 0);
+    if (rooms < 0 || rooms > book.maxRooms) throw fail('Choose between 0 and ' + book.maxRooms + ' rooms.');
+    var lines = [], seen = {};
+    if (rooms > 0) lines.push({ label: rooms + (rooms === 1 ? ' room' : ' rooms'), cents: book.firstRoomCents + (rooms - 1) * book.extraRoomCents });
+    (addons || []).forEach(function (k) {
+      if (seen[k]) return;
+      seen[k] = true;
+      var a = book.addons.filter(function (x) { return x.key === k; })[0];
+      if (!a) throw fail('Unknown add-on.');
+      lines.push({ label: a.label, cents: a.cents });
+    });
+    return { rooms: rooms, addons: Object.keys(seen), lines: lines,
+             total_cents: lines.reduce(function (t, l) { return t + l.cents; }, 0) };
+  }
+
   /* ================================================================ demo */
   function demoBackend() {
-    var KEY = 'hls-demo-v5', SKEY = 'hls-demo-session';
+    var KEY = 'hls-demo-v6', SKEY = 'hls-demo-session';
 
     function seed() {
       var day = 86400000, now = Date.now();
@@ -61,7 +88,15 @@
         { id: 4, code: 'SAMPLE55', address: '302 Sample Heights Blvd', city: 'Houston', zip: '77008',
           client_name: 'Sample Seller', client_phone: '', client_email: '', listing_url: '',
           status: 'planned', staged_on: null, destage_on: null, fee_cents: 150000, cover_url: 'img/looks/look-navy-accent.webp',
-          public_note: null, notes: 'Sample house.', account_id: 4, created_at: iso(1) }
+          public_note: null, notes: 'Sample house.', account_id: 4, created_at: iso(1) },
+        { id: 5, code: 'SAMPLE66', address: '1507 Sample Willow Street', city: 'Houston', zip: '77009',
+          client_name: 'Sample Client', client_phone: '', client_email: '', listing_url: '',
+          status: 'planned', staged_on: date(-6), destage_on: date(-66), fee_cents: 0, cover_url: null,
+          public_note: null, notes: 'Sample house.', account_id: 2, created_at: iso(2) },
+        { id: 6, code: 'SAMPLE77', address: '63 Example Magnolia Way', city: 'Houston', zip: '77019',
+          client_name: 'Sample Seller Two', client_phone: '', client_email: '', listing_url: '',
+          status: 'staged', staged_on: date(21), destage_on: date(-5), fee_cents: 165000, cover_url: 'img/looks/look-open-plan.webp',
+          public_note: null, notes: 'Sample house.', account_id: 4, created_at: iso(24) }
       ];
       var accounts = [
         { id: 1, kind: 'owner', name: 'Hughes Living', studio: null, phone: null, email: 'office@sample.test', created_at: iso(30) },
@@ -92,22 +127,37 @@
         it('Six-drawer dresser', 'Dresser', 'auction', 11000, 32500, 1, 'Primary bedroom', 'lot-dresser.jpg', 'Sample piece.'),
         it('Arched floor mirror', 'Mirror', 'store', 5200, 10999, 1, 'Entry', 'lot-mirror.jpg', 'Sample piece.'),
         it('Entry bench', 'Bench', 'auction', 4000, 12000, null, null, 'lot-bench.jpg', 'Sample piece.'),
-        it('65" TV stand', 'TV stand', 'store', 9500, 19999, null, null, 'lot-tvstand.jpg', 'Sample piece.')
+        it('65" TV stand', 'TV stand', 'store', 9500, 19999, null, null, 'lot-tvstand.jpg', 'Sample piece.'),
+        it('Linen sofa', 'Sofa', 'store', 38000, 84999, 6, 'Living room', null, 'Sample piece.'),
+        it('Round dining table', 'Dining table', 'auction', 15000, 39500, 6, 'Dining room', null, 'Sample piece.'),
+        it('Set of four dining chairs', 'Dining chair', 'auction', 9000, 24000, 6, 'Dining room', null, 'Sold as a set. Sample piece.',
+           { status: 'sold', sold_at: iso(6), sold_cents: 24000, sold_to: 'Sample buyer', sold_house_id: 6 }),
+        it('Queen bed frame', 'Bed', 'store', 21000, 45999, 6, 'Primary bedroom', null, 'Sample piece.')
       ];
       var moves = items.filter(function (i) { return i.house_id; }).map(function (i, k) {
-        return { id: k + 1, item_id: i.id, house_id: i.house_id, room: i.room, placed_at: iso(12), removed_at: null };
+        return { id: k + 1, item_id: i.id, house_id: i.house_id, room: i.room, placed_at: iso(i.house_id === 6 ? 21 : 12), removed_at: null };
       });
       var requests = [
         { id: 1, house_id: 1, item_id: 1, item_title: 'Grey 3-piece sectional', name: 'Sample visitor',
           phone: '555-0100', email: null, note: 'Would you deliver to Katy?', status: 'new', kind: 'piece',
-          piece_count: null, total_cents: null, created_at: iso(1) }
+          piece_count: null, total_cents: null, created_at: iso(1) },
+        { id: 2, house_id: 6, item_id: 11, item_title: 'Linen sofa', name: 'Sample visitor two',
+          phone: '555-0101', email: null, note: null, status: 'contacted', kind: 'piece',
+          piece_count: null, total_cents: null, created_at: iso(9) },
+        { id: 3, house_id: 6, item_id: null, item_title: null, name: 'Sample visitor three',
+          phone: null, email: 'visitor@sample.test', note: 'Is the bed frame a queen or a king?', status: 'new', kind: 'question',
+          piece_count: null, total_cents: null, created_at: iso(2) }
       ];
-      return { houses: houses, items: items, moves: moves, requests: requests, accounts: accounts, catalog: [],
-               seq: { house: 5, item: 11, move: 20, req: 2, tag: 1011, account: 5 } };
+      var services = [
+        { id: 1, house_id: 1, account_id: 2, service: 'carpet', rooms: 3, addons: ['addon_hall'], estimate_cents: 14400,
+          preferred_on: date(15), note: 'Sample request.', status: 'done', created_at: iso(18) }
+      ];
+      return { houses: houses, items: items, moves: moves, requests: requests, accounts: accounts, services: services, catalog: [],
+               seq: { house: 7, item: 15, move: 20, req: 4, tag: 1015, account: 5, service: 2 } };
     }
 
     function load() {
-      try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.houses) return s; } catch (e) {}
+      try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.houses && s.services) return s; } catch (e) {}
       var fresh = seed(); save(fresh); return fresh;
     }
     function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
@@ -190,7 +240,7 @@
         var s = load(), a = need(s);
         if (a.kind === 'owner') {
           return ok({ houses: s.houses.slice().reverse(), items: s.items, requests: s.requests.slice().reverse(),
-                      moves: s.moves, catalog_count: s.catalog.length,
+                      moves: s.moves, catalog_count: s.catalog.length, services: s.services.slice().reverse(),
                       accounts: s.accounts.filter(function (x) { return x.kind !== 'owner'; })
                         .map(function (x) { return pick(x, ['id', 'kind', 'name', 'studio', 'phone', 'email', 'created_at']); }) });
         }
@@ -210,6 +260,7 @@
             return pick(r, ['id', 'house_id', 'item_id', 'item_title', 'name', 'note', 'kind', 'piece_count', 'total_cents', 'status', 'created_at']);
           }),
           moves: s.moves.filter(function (m) { return ids[m.house_id]; }),
+          services: s.services.filter(function (v) { return ids[v.house_id]; }).reverse(),
           catalog_count: 0, accounts: []
         });
       },
@@ -308,6 +359,7 @@
         s.houses = s.houses.filter(function (x) { return x.id !== id; });
         s.moves = s.moves.filter(function (m) { return m.house_id !== id; });
         s.requests = s.requests.filter(function (r) { return r.house_id !== id; });
+        s.services = s.services.filter(function (v) { return v.house_id !== id; });
         s.items.forEach(function (x) { if (x.sold_house_id === id) x.sold_house_id = null; });
         save(s); return ok();
       },
@@ -315,6 +367,29 @@
         var s = load(); need(s, true);
         s.requests.forEach(function (r) { if (r.id === id) r.status = status; });
         save(s); return ok();
+      },
+
+      requestService: function (p) {
+        var s = load(), a = need(s), staff = a.kind === 'owner';
+        var h = s.houses.filter(function (x) { return x.id === int(p.house_id); })[0];
+        if (!h || (!staff && h.account_id !== a.id)) return no('That is not one of your houses.');
+        var q = carpetQuote(p.rooms, p.addons);
+        if (!q.lines.length) return no('Choose at least one room or add-on.');
+        var v = { id: s.seq.service++, house_id: h.id, account_id: staff ? h.account_id : a.id, service: 'carpet',
+                  rooms: q.rooms, addons: q.addons, estimate_cents: q.total_cents, preferred_on: txt(p.preferred_on),
+                  note: txt(p.note), status: 'new', created_at: new Date().toISOString() };
+        s.services.push(v); save(s); return ok(v);
+      },
+      setService: function (id, status) {
+        var s = load(), a = need(s), staff = a.kind === 'owner';
+        var v = s.services.filter(function (x) { return x.id === id; })[0];
+        if (!v) return no('That request no longer exists.');
+        if (['new', 'scheduled', 'done', 'cancelled'].indexOf(status) === -1) return no('Unknown status.');
+        if (!staff) {
+          if (!mine(s, a)[v.house_id]) return no('That is not one of your requests.');
+          if (status !== 'cancelled' || v.status !== 'new') return no('Only a request that has not been scheduled yet can be cancelled here.');
+        }
+        v.status = status; save(s); return ok();
       },
 
       catalogImport: function (rows, replace) {
@@ -433,7 +508,7 @@
       var m = (error && error.message) || 'Something went wrong.';
       if (/not staff|no staging account|permission denied/i.test(m)) return fail('This account cannot do that.');
       if (/Could not find the function|PGRST202|schema cache/i.test(m)) {
-        return fail('The staging tables are not installed in Supabase yet. Run supabase/0001_staging.sql and 0002_accounts.sql first.');
+        return fail('The staging tables are not installed in Supabase yet. Run supabase/0001_staging.sql, 0002_accounts.sql and 0003_services.sql first.');
       }
       if (/JWT|session/i.test(m)) return fail('Your sign-in has expired. Sign in again.');
       return fail(m);
@@ -480,7 +555,14 @@
       signOut: function () { staff = false; return client().then(function (c) { return c.auth.signOut(); }); },
 
       // staff and customers read through different doors; the database decides what each may see
-      office: function () { return rpc(staff ? 'stg_office' : 'stg_portal'); },
+      office: function () {
+        // services arrive through their own door (0003), so the houses still open if it is not installed yet
+        return Promise.all([rpc(staff ? 'stg_office' : 'stg_portal'),
+                            rpc('stg_services_list').catch(function () { return []; })])
+          .then(function (r) { r[0].services = r[1] || []; return r[0]; });
+      },
+      requestService: function (p) { return rpc('stg_service_request', { p: p }); },
+      setService: function (id, status) { return rpc('stg_set_service', { p_id: id, p_status: status }); },
       saveHouse: function (h) { return rpc(staff ? 'stg_save_house' : 'stg_portal_save_house', { p: h }); },
       placeItem: function (id, houseId, room) { return rpc('stg_place', { p_item: id, p_house: houseId, p_room: room || null }); },
       saveItem: function (i) { return rpc('stg_save_item', { p: i }); },
@@ -529,6 +611,7 @@
 
   /* ---------- small things every page needs ---------- */
   global.HLS = {
+    carpetQuote: carpetQuote,
     esc: function (s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];

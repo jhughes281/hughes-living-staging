@@ -58,7 +58,10 @@ try {
   const accounts = readFileSync(join(here, '..', 'supabase', '0002_accounts.sql'), 'utf8');
   await db.query(accounts);
   await db.query(accounts);
-  ok(true, 'auction core + staging + accounts applied, each a second time');
+  const services = readFileSync(join(here, '..', 'supabase', '0003_services.sql'), 'utf8');
+  await db.query(services);
+  await db.query(services);
+  ok(true, 'auction core + staging + accounts + services applied, each a second time');
 
   // two accounts: one staff, one ordinary bidder
   const STAFF = '11111111-1111-1111-1111-111111111111';
@@ -219,6 +222,65 @@ try {
   ok((await db.query('select stg_my_account() a')).rows[0].a.kind === 'owner', 'staff sign in as the owner');
   await db.query('select stg_place($1,null,null)', [spare.id]);
   ok(true, 'staff can move any piece');
+
+  console.log('\n== services: carpet cleaning ==');
+  await as('anon');
+  await refused('select * from stg_services', [], 'anon cannot read service requests');
+  await refused('select stg_services_list()', [], 'anon cannot list service requests');
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: dh.id, rooms: 3 })], 'anon cannot ask for a cleaning');
+
+  await as('authenticated', BUYER);
+  const clean = (await db.query('select stg_service_request($1) s', [JSON.stringify({
+    house_id: dh.id, rooms: 3, addons: ['addon_hall', 'addon_hall'], estimate_cents: 1, preferred_on: '2026-12-01', note: 'Before install' })])).rows[0].s;
+  ok(clean.estimate_cents === 14400 && clean.status === 'new' && clean.addons.length === 1,
+     'the designer asks for 3 rooms + hallway: priced by the database at $144, whatever the page sent');
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: listing.id, rooms: 2 })], "a designer cannot ask for a cleaning at someone else's house");
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: house.id, rooms: 2 })], "or at one of Hughes Living's own houses");
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: dh.id, rooms: 0 })], 'a request needs at least one room or add-on');
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: dh.id, rooms: 9 })], 'no more than 8 rooms');
+  await refused('select stg_service_request($1)', [JSON.stringify({ house_id: dh.id, rooms: 1, addons: ['addon_free'] })], 'an unknown add-on is refused');
+  await refused('select stg_set_service($1,$2)', [clean.id, 'done'], 'a customer cannot mark their own request done');
+
+  await as('authenticated', AGENT);
+  ok((await db.query('select stg_services_list() l')).rows[0].l.length === 0, "the realtor sees none of the designer's requests");
+  await refused('select stg_set_service($1,$2)', [clean.id, 'cancelled'], "and cannot cancel one");
+
+  await as('authenticated', STAFF);
+  ok((await db.query('select stg_services_list() l')).rows[0].l.length === 1, 'staff see every request');
+  await db.query('select stg_set_service($1,$2)', [clean.id, 'scheduled']);
+  await as('authenticated', BUYER);
+  let mineList = (await db.query('select stg_services_list() l')).rows[0].l;
+  ok(mineList.length === 1 && mineList[0].status === 'scheduled', 'the designer sees it scheduled');
+  await refused('select stg_set_service($1,$2)', [clean.id, 'cancelled'], 'and can no longer cancel it here');
+  const second = (await db.query('select stg_service_request($1) s', [JSON.stringify({ house_id: dh.id, rooms: 0, addons: ['addon_sofa'] })])).rows[0].s;
+  await db.query('select stg_set_service($1,$2)', [second.id, 'cancelled']);
+  mineList = (await db.query('select stg_services_list() l')).rows[0].l;
+  ok(second.estimate_cents === 7900 && mineList.find(x => x.id === second.id).status === 'cancelled', 'a new request can be cancelled by the customer who made it');
+
+  // one price book, three copies: Richard's site, this site's config.js, and the database
+  await as(null);
+  const cfgSrc = readFileSync(join(here, '..', 'config.js'), 'utf8');
+  const win = { location: { search: '', hostname: 'localhost' } };
+  new Function('window', 'location', 'localStorage', 'URLSearchParams', cfgSrc)(win, win.location, { getItem: () => null, setItem() {} }, URLSearchParams);
+  const book = win.HLS_CONFIG.services.carpet;
+  const sqlPrice = async (rooms, addons) => (await db.query('select stg_carpet_estimate($1,$2) c', [rooms, addons])).rows[0].c;
+  let same = (await sqlPrice(1, [])) === book.firstRoomCents
+    && (await sqlPrice(2, [])) === book.firstRoomCents + book.extraRoomCents
+    && (await sqlPrice(book.maxRooms, [])) === book.firstRoomCents + (book.maxRooms - 1) * book.extraRoomCents;
+  for (const a of book.addons) same = same && (await sqlPrice(0, [a.key])) === a.cents;
+  ok(same, 'config.js and the database price a cleaning the same way');
+  const richards = join(here, '..', '..', 'richards-carpet-cleaning', 'supabase', 'functions', '_shared', 'pricing.js');
+  if (existsSync(richards)) {
+    const src = readFileSync(richards, 'utf8').replace(/^export /gm, '');
+    const R = new Function(src + '; return { DEFAULT_PRICE_BOOK, MAX_ROOMS };')();
+    const rb = R.DEFAULT_PRICE_BOOK;
+    ok(R.MAX_ROOMS === book.maxRooms && rb.rooms.first_cents === book.firstRoomCents && rb.rooms.additional_cents === book.extraRoomCents
+       && rb.addons.length === book.addons.length
+       && rb.addons.every(a => book.addons.some(b => b.key === a.key && b.cents === a.amount_cents && b.label === a.label)),
+       "and both match Richard's own price book");
+  } else {
+    console.log("  skip  Richard's repo is not next door, so his price book was not compared");
+  }
 
   await as(null);
   // the auction project's own guarantee must still hold with staging installed

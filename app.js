@@ -21,7 +21,7 @@
   var API = window.HLS_API, CFG = window.HLS_CONFIG;
   var esc = window.HLS.esc, money = window.HLS.money, safeUrl = window.HLS.safeUrl;
 
-  var D = { houses: [], items: [], requests: [], moves: [], accounts: [], services: [], catalog_count: 0 };
+  var D = { houses: [], items: [], requests: [], moves: [], accounts: [], services: [], scans: [], catalog_count: 0 };
   var ME = { signedIn: false, kind: null, staff: false };     // who is signed in
   var KIND = { owner: 'Hughes Living staff', self: 'Staging it myself', designer: 'Interior designer', realtor: 'Realtor' };
   // what each kind calls its business, and the houses it looks after
@@ -67,7 +67,11 @@
     var sales = sum(sold, 'sold_cents'), cogs = sum(sold, 'cost_cents');
     var credit = h.account_id != null ? Math.round(sales * CREDIT / 100) : 0, applied = Math.min(credit, h.fee_cents || 0);
     var end = h.status === 'destaged' && h.destage_on ? new Date(h.destage_on + 'T12:00:00') : new Date();
+    var since = new Date(Date.now() - 6 * DAY - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    var mine = D.scans.filter(function (c) { return c.house_id === h.id; });
     return {
+      // opens of the buyer page: all of them, and the last seven days
+      opens: sum(mine, 'n'), opensWeek: sum(mine.filter(function (c) { return c.day >= since; }), 'n'),
       pieces: here.length, floor: sum(live, 'price_cents'), floorCost: sum(live, 'cost_cents'),
       soldN: sold.length, sales: sales, cogs: cogs,
       // the sales credit: earned on every sale from an account's house, applied up to the fee
@@ -93,7 +97,7 @@
     }).catch(function (e) { toast(e.message || 'That did not save.', true); throw e; });
   }
   function reload() {
-    return API.office().then(function (d) { d.accounts = d.accounts || []; d.services = d.services || []; D = d; route(); });
+    return API.office().then(function (d) { d.accounts = d.accounts || []; d.services = d.services || []; d.scans = d.scans || []; D = d; route(); });
   }
 
   /* ---------- small builders ---------- */
@@ -234,6 +238,7 @@
         '<div><dt>Pieces here</dt><dd>' + s.pieces + '</dd></div>' +
         '<div><dt>On the floor</dt><dd>' + money(s.floor, '$0') + '</dd></div>' +
         '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + ' <small>' + s.soldN + ' pc</small></dd></div>' +
+        (D.scansOff || (h.status === 'planned' && !s.opens) ? '' : '<div><dt>QR page opens</dt><dd>' + s.opens + ' <small>' + s.opensWeek + ' this week</small></dd></div>') +
         '<div><dt>Staging fee</dt><dd>' + (h.fee_cents ? money(h.fee_cents) : (ME.staff ? '$0' : '<small>Not set yet</small>')) + '</dd></div>' +
         (CREDIT && h.account_id != null
           ? '<div><dt>Sales credit, ' + CREDIT + '%</dt><dd>' + money(s.credit, '$0') + '</dd></div>' +
@@ -318,13 +323,37 @@
             (r.phone && r.email ? ' · ' : '') +
             (r.email ? '<a href="mailto:' + esc(r.email) + '">' + esc(r.email) + '</a>' : '') + '</p>' +
           '<label class="vh" for="rq' + r.id + '">Status of request from ' + esc(r.name) + '</label>' +
-          '<select class="mini" id="rq' + r.id + '" data-act="req-status" data-id="' + r.id + '">' + opts(RSTATUS, r.status) + '</select>'
+          '<select class="mini" id="rq' + r.id + '" data-act="req-status" data-id="' + r.id + '">' + opts(RSTATUS, r.status) + '</select>' +
+          (r.kind === 'question' ? '' : payBlock(r))
         : '<p class="req__reach">' + chip(r.status === 'new' ? 'new' : 'hold', RSTATUS[r.status]) + ' Hughes Living is following up with this buyer.</p>') +
     '</article>';
   }
+  /* Getting paid for an order. The payment itself happens wherever Hughes
+     Living takes cards; this only carries the link to it and whether it is paid. */
+  function payBlock(r) {
+    if (r.paid_at) {
+      return '<div class="pay pay--paid">' + chip('staged', 'Paid') + ' <span>' + fmtDate(r.paid_at) + '</span> ' +
+        '<button class="linkbtn" type="button" data-act="pay-unpaid" data-id="' + r.id + '">Not paid after all</button></div>';
+    }
+    return '<div class="pay"><div class="field"><label for="pay' + r.id + '">Payment link</label>' +
+      '<input id="pay' + r.id + '" type="url" inputmode="url" placeholder="https://" value="' + esc(r.pay_url || '') + '"></div>' +
+      '<div class="pay__acts"><button class="btn btn--ghost" type="button" data-act="pay-save" data-id="' + r.id + '">Save link</button>' +
+      (r.pay_url ? '<button class="btn btn--ghost" type="button" data-act="pay-copy" data-id="' + r.id + '">Copy message for buyer</button>' +
+                   '<button class="btn" type="button" data-act="pay-paid" data-id="' + r.id + '">Mark paid</button>' : '') + '</div></div>';
+  }
+  function payMessage(r) {
+    var h = house(r.house_id);
+    var what = r.kind === 'look' ? 'the furniture' : (r.item_title || 'your piece');
+    return 'Hi ' + String(r.name || '').split(' ')[0] + ', this is Hughes Living. Here is the secure link to pay for ' + what +
+      (h ? ' from ' + h.address : '') + ': ' + r.pay_url;
+  }
+  var request = function (id) { return D.requests.filter(function (r) { return r.id === id; })[0]; };
+
   function renderRequests() {
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Orders &amp; questions</p><h1 class="title">Who scanned, and what they <em>want</em></h1></div></div>' +
+      (ME.staff && D.requests.length ? '<p class="note"><strong>Getting paid</strong> Make the checkout where you take cards (in Shopify: a draft order, then &ldquo;Send invoice&rdquo;, which adds the sales tax). ' +
+        'Paste its link on the order here, copy the message to the buyer, and mark it paid when the money is in. Marking it paid does not mark the piece sold; do that on the piece.</p>' : '') +
       (D.requests.length ? '<div class="reqs">' + D.requests.map(reqCard).join('') + '</div>'
         : '<p class="empty">Nothing yet. When a buyer taps &ldquo;Buy this piece&rdquo; or &ldquo;Buy the look&rdquo; on a house page, it lands here.</p>');
   }
@@ -537,6 +566,7 @@
           '<div><dt>At tag price</dt><dd>' + money(s.floor, '$0') + '</dd></div>' +
           '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + ' <small>' + s.soldN + ' pc</small></dd></div>' +
           '<div><dt>Staged</dt><dd>' + (s.days != null && h.status !== 'planned' ? s.days + ' <small>days</small>' : 'Not yet') + '</dd></div>' +
+          (D.scansOff || h.status === 'planned' ? '' : '<div><dt>QR page opens</dt><dd>' + s.opens + ' <small>' + s.opensWeek + ' this week</small></dd></div>') +
         '</dl>' +
         (h.status !== 'planned' ? '<div class="head__acts dash__acts">' + qrActs(h) + '</div>' : '') +
         '<h2 class="h2">Buyers</h2>' +
@@ -577,6 +607,7 @@
         '<small>' + esc([h.client_name, h.city].filter(Boolean).join(' · ') || 'No client on file') + '</small>' +
         '<span class="pcard__m">' + plural(s.pieces, 'piece') + ' · ' + plural(roomsOf(h).length, 'room') + ' · ' + money(s.floor, '$0') + '</span>' +
         '<span class="pcard__d">' + esc(date) + '</span>' +
+        (h.status === 'staged' && !D.scansOff ? '<span class="pcard__d">' + plural(s.opens, 'QR page open') + ', ' + s.opensWeek + ' this week</span>' : '') +
         (s.newReq ? '<span class="pcard__d pcard__d--flag">' + plural(s.newReq, 'new buyer request') + '</span>' : '') +
         (n ? '<span class="pcard__n">' + esc(n.t) + '</span>' : '') + '</a>';
     };
@@ -653,6 +684,7 @@
         '<p class="lrow__qr">' + qr + '</p>' +
         '<dl class="lrow__nums">' +
           '<div><dt>Staged</dt><dd>' + (h.status === 'planned' || s.days == null ? '–' : s.days + ' <small>days</small>') + '</dd></div>' +
+          '<div><dt>QR page opens</dt><dd>' + (D.scansOff || (h.status === 'planned' && !s.opens) ? '–' : s.opens + ' <small>' + s.opensWeek + ' this week</small>') + '</dd></div>' +
           '<div><dt>Buyer requests</dt><dd>' + reqs.length + (s.newReq ? ' <small class="is-flag">' + s.newReq + ' new</small>' : '') + '</dd></div>' +
           '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + '</dd></div>' +
           (CREDIT ? '<div><dt>Your credit, ' + CREDIT + '%</dt><dd>' + money(s.credit, '$0') + (s.credit && h.fee_cents ? ' <small>fee now ' + money(s.net, '$0') + '</small>' : '') + '</dd></div>' : '') +
@@ -1227,6 +1259,18 @@
       if (h.status === 'destaged' && !h.destage_on) h.destage_on = today();
       run(API.saveHouse(h), 'House marked ' + HSTATUS[h.status].toLowerCase() + '.').catch(function () {});
     }
+    else if (act === 'pay-save' || act === 'pay-paid' || act === 'pay-unpaid') {
+      var rq = request(id), box = document.getElementById('pay' + id);
+      var link = box ? box.value.trim() : (rq.pay_url || '');
+      if (act === 'pay-save' && !link && !rq.pay_url) { toast('Paste the payment link first.', true); return; }
+      run(API.setRequestPay(id, link, act === 'pay-paid'),
+          act === 'pay-paid' ? 'Order marked paid.' : act === 'pay-unpaid' ? 'Order marked not paid.' : (link ? 'Payment link saved.' : 'Payment link removed.')).catch(function () {});
+    }
+    else if (act === 'pay-copy') {
+      var msg = payMessage(request(id));
+      (navigator.clipboard ? navigator.clipboard.writeText(msg) : Promise.reject())
+        .then(function () { toast('Message copied. Paste it into a text or email to the buyer.'); }, function () { prompt('Copy this message:', msg); });
+    }
     else if (act === 'copy-link') {
       var link = window.HLS.houseUrl(el.getAttribute('data-code'));
       (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
@@ -1483,7 +1527,7 @@
       '<p class="door__staff">Hughes Living staff: <button class="linkbtn" type="button" data-act="door" data-kind="owner" data-mode="in">sign in to the office</button>' +
         (demo ? ' or <button class="linkbtn" type="button" data-act="sample" data-kind="owner">open the sample office</button>' : '') + '</p>' +
       '<div class="rooms3">' + room('room-living', 'Living room') + room('room-dining', 'Dining room') + room('room-bedroom', 'Bedroom') + '</div>' +
-      '<p class="door__more"><a class="btn btn--ghost" href="gallery.html">See the gallery</a></p></div>';
+      '<p class="door__more"><a class="btn btn--ghost" href="gallery.html">See the gallery</a> <a class="btn btn--ghost" href="index.html">How it works</a></p></div>';
   }
 
   /* Signed in, but not yet a staging customer (an auction bidder, say). */
@@ -1540,7 +1584,12 @@
         '<span class="role__l">' + (s.staff ? '' : '<strong class="role__who">' +
           esc([s.name, s.studio !== s.name && s.studio].filter(Boolean).join(' · ') || s.email || '') + '</strong>') + esc(role.line) + '</span>' +
         '<a href="#guide/login">What this login can do</a></div>' : '';
-      if (!s.signedIn) return doorView();
+      if (!s.signedIn) {
+        doorView();
+        var as = new URLSearchParams(location.search).get('as');
+        if (as && KIND[as] && as !== 'owner' && !doorView.asked) { doorView.asked = true; openAuth(as, 'up'); }
+        return;
+      }
       if (!s.kind) return finishView();
       if (atDoor) {                       // just came through the door: start on this account's first screen
         atDoor = false;

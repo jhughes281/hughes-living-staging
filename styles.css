@@ -705,3 +705,100 @@ body[data-role] .step--next .step__s{ color:var(--role); }
 .eye[aria-pressed=false] .eye__off{ display:none; }   /* the slash shows while the password is visible */
 .forgot{ margin:1rem 0 0; }
 .forgot .linkbtn{ min-height:44px; font-size:.9rem; }
+
+/* ---------- an order's payment link (office only) ---------- */
+.pay{ margin-top:.9rem; padding-top:.8rem; border-top:1px solid var(--line); }
+.pay .field{ margin-bottom:.6rem; }
+.pay__acts{ display:flex; gap:.5rem; flex-wrap:wrap; }
+.pay__acts .btn{ flex:1 1 auto; font-size:.82rem; padding-inline:.8rem; }
+.pay--paid{ display:flex; align-items:center; gap:.4rem .7rem; flex-wrap:wrap; font-size:.88rem; }
+.pay--paid .linkbtn{ min-height:44px; margin-left:auto; }
+.door__more{ display:flex; gap:.5rem; flex-wrap:wrap; }
+
+/* ============================================================ front page
+   The public page a prospect is sent to. Same faces and hairlines as the
+   office; the three login colours appear once, on the three kinds of account. */
+.front .tabs{ margin-left:auto; width:auto; order:0; }
+.front .tabs__in{ border:1px solid var(--ink); color:var(--ink); margin-left:.6rem; padding:0 1rem; }
+.front .tabs__in:hover{ background:var(--ink); color:#fff; }
+.front .bar{ position:sticky; }
+.front section{ scroll-margin-top:5rem; }
+
+.fhero{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:3rem; align-items:end; padding-block:3.5rem 3rem; }
+.fhero__h{ font-family:var(--f-disp); font-weight:400; color:var(--ink); margin:0; font-size:clamp(2.4rem, 5.6vw, 4.2rem); line-height:1.02; letter-spacing:-.025em; }
+.fhero__h em, .fsec__h em{ font-style:italic; }
+.fhero__lede{ font-size:1.1rem; line-height:1.6; margin:1.3rem 0 0; max-width:34rem; }
+.fhero__acts{ display:flex; gap:.6rem; flex-wrap:wrap; margin-top:1.7rem; }
+.fhero__fig{ margin:0; }
+.fhero__fig img{ width:100%; height:auto; aspect-ratio:16 / 10; object-fit:cover; }
+.fhero__fig figcaption, .front .fine{ font-size:.82rem; color:var(--ink-3); }
+.fhero__fig figcaption{ padding-top:.5rem; }
+
+.fsec{ padding-block:3.5rem; border-top:1px solid var(--ink); }
+.fsec__h{ font-family:var(--f-disp); font-weight:400; color:var(--ink); margin:0; font-size:clamp(1.8rem, 3.6vw, 2.7rem); line-height:1.1; letter-spacing:-.02em; max-width:22ch; }
+.fsteps{ list-style:none; margin:2.2rem 0 0; padding:0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:0; border-top:1px solid var(--line); }
+.fsteps li{ padding:1.4rem 1.5rem 0 0; }
+.fsteps li + li{ padding-left:1.5rem; border-left:1px solid var(--line); }
+.fsteps__n{ font-family:var(--f-data); font-weight:700; font-size:.95rem; color:var(--accent); }
+.fsteps h3, .fwho h3{ font-family:var(--f-disp); font-weight:400; font-size:1.5rem; line-height:1.15; color:var(--ink); margin:.5rem 0 .4rem; }
+.fsteps p{ margin:0; font-size:.95rem; }
+
+.fband{ background:var(--cream); }
+.fband__in{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); gap:3.5rem; align-items:center; padding-block:3.5rem; }
+.fband__in > div > p{ max-width:36rem; }
+.fband__rooms{ margin-top:0; }
+.flist{ list-style:none; margin:1.2rem 0; padding:0; border-top:1px solid var(--line); }
+.flist li{ padding:.6rem 0 .6rem 1.4rem; border-bottom:1px solid var(--line); position:relative; font-size:.95rem; }
+.flist li::before{ content:""; position:absolute; left:.2rem; top:1.2rem; width:.45rem; height:1px; background:var(--role, var(--accent)); }
+.flist strong{ color:var(--ink); }
+
+.fwho{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1.5rem; margin-top:2.2rem; }
+.fwho__c{ border-top:3px solid var(--role); padding-top:1.1rem; display:flex; flex-direction:column; }
+.fwho__c[data-role=self]{ --role:#3D7A40; }
+.fwho__c[data-role=designer]{ --role:#A6532E; }
+.fwho__c[data-role=realtor]{ --role:#2F4A63; }
+.fwho h3{ font-style:italic; font-size:1.7rem; margin-top:0; }
+.fwho__for{ margin:0; min-height:3.1em; }
+.fwho__c .flist{ flex:1; }
+.fwho__c .btn{ align-self:flex-start; }
+
+.fcredit{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:3rem; align-items:end; }
+.fcredit[hidden]{ display:none; }
+.fcredit p{ margin:0 0 .7rem; }
+
+.flooks{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:1rem; margin-bottom:.8rem; }
+.flooks a{ display:block; background:var(--sand); }
+.flooks img{ width:100%; height:auto; aspect-ratio:16 / 10; object-fit:cover; transition:opacity .2s; }
+.flooks a:hover img{ opacity:.88; }
+.front .head{ margin-bottom:1.6rem; }
+
+.fend{ padding-block:3.5rem; }
+.fend__contact{ margin:1.4rem 0 0; }
+.fend__contact a{ display:inline-flex; align-items:center; min-height:44px; }
+.front .foot{ margin-top:0; border-top:0; }
+.front .foot a{ display:inline-flex; align-items:center; min-height:44px; }
+
+@media (max-width: 980px){
+  .fsteps{ grid-template-columns:1fr 1fr; }
+  .fsteps li{ padding:1.4rem 1.2rem 1.4rem 0; border-bottom:1px solid var(--line); }
+  .fsteps li + li{ padding-left:0; border-left:0; }
+  .fsteps li:nth-child(even){ padding-left:1.2rem; border-left:1px solid var(--line); }
+  .fwho{ grid-template-columns:1fr; gap:2.2rem; }
+  .fwho__for{ min-height:0; }
+}
+@media (max-width: 860px){
+  .fhero, .fband__in, .fcredit{ grid-template-columns:1fr; gap:1.8rem; }
+  .fhero{ padding-block:2.2rem 2.5rem; align-items:start; }
+  .fsec, .fband__in, .fend{ padding-block:2.6rem; }
+  .front .bar{ position:static; }
+  .front .tabs{ width:100%; order:3; margin-left:0; }
+  .front .tabs__in{ margin-left:auto; }
+}
+@media (max-width: 560px){
+  .fsteps{ grid-template-columns:1fr; }
+  .fsteps li, .fsteps li:nth-child(even){ padding:1.2rem 0; border-left:0; }
+  .flooks{ grid-template-columns:1fr; }
+  .fhero__acts .btn, .fwho__c .btn{ width:100%; }
+  .front .tabs a:not(.tabs__in){ padding:0 .55rem; font-size:.85rem; }
+}
+.front .foot{ padding-inline:var(--gut); }

@@ -64,7 +64,10 @@ try {
   const moveTote = readFileSync(join(here, '..', 'supabase', '0004_move_tote.sql'), 'utf8');
   await db.query(moveTote);
   await db.query(moveTote);
-  ok(true, 'auction core + staging + accounts + services + move & tote applied, each a second time');
+  const scans = readFileSync(join(here, '..', 'supabase', '0005_scans_payments.sql'), 'utf8');
+  await db.query(scans);
+  await db.query(scans);
+  ok(true, 'auction core + staging + accounts + services + move & tote + scans applied, each a second time');
 
   // two accounts: one staff, one ordinary bidder
   const STAFF = '11111111-1111-1111-1111-111111111111';
@@ -338,6 +341,44 @@ try {
   } else {
     console.log("  skip  Move & Tote's site is not next door, so its RATES were not compared");
   }
+
+  console.log('\n== QR page opens ==');
+  await as('authenticated', STAFF);
+  await db.query('select stg_save_house($1)', [JSON.stringify({ ...dh, status: 'staged', account_id: BUYER })]);
+  await as('anon');
+  await refused('select * from stg_scans', [], 'anon cannot read the scan counts');
+  await refused('select stg_scans_list()', [], 'anon cannot list scan counts');
+  await db.query('select stg_scan($1)', [dh.code]);
+  await db.query('select stg_scan($1)', [dh.code.toLowerCase()]);
+  await db.query('select stg_scan($1)', [' ' + dh.code + ' ']);
+  await db.query('select stg_scan($1)', ['NOPE0000']);
+  await db.query('select stg_scan($1)', [listing.code]);                 // a planned house: its page is closed
+  await as('authenticated', BUYER);
+  let sc = (await db.query('select stg_scans_list() l')).rows[0].l;
+  ok(sc.length === 1 && sc[0].n === 3 && sc[0].house_id === dh.id && Object.keys(sc[0]).sort().join() === 'day,house_id,n',
+     'three opens of a staged house are one row of 3, holding nothing about the visitor');
+  await as('authenticated', AGENT);
+  ok((await db.query('select stg_scans_list() l')).rows[0].l.length === 0, "the realtor sees no counts for the designer's house, and none for a closed page");
+  await as('authenticated', STAFF);
+  ok((await db.query('select stg_scans_list() l')).rows[0].l.length === 1, 'staff see every count');
+
+  console.log('\n== payment link on an order ==');
+  const order = (await db.query('select stg_office() o')).rows[0].o.requests.find(r => r.house_id === dh.id);
+  await refused('select stg_set_request_pay($1,$2,false)', [order.id, 'http://pay.example/x'], 'a payment link must be https');
+  await refused('select stg_set_request_pay($1,$2,false)', [order.id, 'javascript:alert(1)'], 'and cannot be a script');
+  await db.query('select stg_set_request_pay($1,$2,false)', [order.id, ' https://pay.example/inv/123 ']);
+  let paidRow = (await db.query('select stg_office() o')).rows[0].o.requests.find(r => r.id === order.id);
+  ok(paidRow.pay_url === 'https://pay.example/inv/123' && paidRow.paid_at === null, 'staff save a payment link on the order');
+  await db.query('select stg_set_request_pay($1,$2,true)', [order.id, 'https://pay.example/inv/123']);
+  paidRow = (await db.query('select stg_office() o')).rows[0].o.requests.find(r => r.id === order.id);
+  ok(paidRow.paid_at !== null, 'and mark it paid');
+  await db.query('select stg_set_request_pay($1,$2,false)', [order.id, 'https://pay.example/inv/123']);
+  ok((await db.query('select stg_office() o')).rows[0].o.requests.find(r => r.id === order.id).paid_at === null, 'or not paid again');
+  await as('authenticated', BUYER);
+  await refused('select stg_set_request_pay($1,$2,true)', [order.id, 'https://pay.example/mine'], 'a customer cannot set a payment link');
+  ok(!/pay\.example|pay_url|paid_at/.test(JSON.stringify((await db.query('select stg_portal() p')).rows[0].p)), 'and never receives one');
+  await as('anon');
+  await refused('select stg_set_request_pay($1,$2,true)', [order.id, 'https://pay.example/x'], 'nor can anyone signed out');
 
   await as(null);
   // the auction project's own guarantee must still hold with staging installed

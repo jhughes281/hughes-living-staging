@@ -155,7 +155,16 @@
   });
 
   if (!code) render({ found: false });
-  else API.publicHouse(code).then(render).catch(function () {
+  else API.publicHouse(code).then(function (h) {
+    render(h);
+    // one count per visit, not per reload or per piece tapped
+    try {
+      if (h && h.open && !sessionStorage.getItem('hls-scan-' + code)) {
+        sessionStorage.setItem('hls-scan-' + code, '1');
+        API.scan(code);
+      }
+    } catch (e) { /* private window with storage off: count nothing rather than every reload */ }
+  }).catch(function () {
     shut('This page could not <em>load.</em>', 'Check your connection and scan the card again.');
   });
 })();

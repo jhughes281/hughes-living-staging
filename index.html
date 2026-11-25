@@ -3,55 +3,192 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Hughes Living Staging</title>
+<title>Hughes Living Staging | Home staging with furniture buyers can take home</title>
+<meta name="description" content="Hughes Living Staging furnishes a house for sale with pieces from our store and auction floor. Every piece carries a price and a QR code, so a buyer who likes the sofa can buy the sofa. For homeowners, interior designers and realtors in Houston.">
+<meta property="og:title" content="Hughes Living Staging">
+<meta property="og:description" content="Home staging where every piece is for sale. Buyers scan a QR code in the house and buy what they like.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://jhughes281.github.io/hughes-living-staging/img/looks/look-open-plan.webp">
 <link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<script>
+  /* Old links to the app, and emailed sign-in links, used to land here. Anything
+     with a # belongs to the app, so pass it straight through. */
+  if (location.hash && !/^#(how|who|buyers|credit|looks|top)$/.test(location.hash)) location.replace('app.html' + location.search + location.hash);
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&family=Courier+Prime:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=16">
+<link rel="stylesheet" href="styles.css?v=17">
 </head>
-<body class="office">
-<a class="skip" href="#view">Skip to the page</a>
+<body class="front" id="top">
+<a class="skip" href="#main">Skip to the page</a>
 
 <header class="bar">
   <div class="wrap bar__in">
-    <a class="mark" href="#houses" aria-label="Hughes Living Staging, houses">
+    <a class="mark" href="#top" aria-label="Hughes Living Staging, top of page">
       <span class="mark__name">Hughes Living <em>Staging</em></span>
-      <span class="mark__role">Office</span>
     </a>
-    <nav class="tabs" id="tabs" aria-label="Sections" hidden>
-      <a href="#home" data-tab="home" data-cust>Home</a>
-      <a href="#houses" data-tab="houses" id="tabHouses">Houses</a>
-      <a href="#furniture" data-tab="furniture">Furniture</a>
-      <a href="#requests" data-tab="requests">Requests <span class="tabs__n" id="reqCount" hidden></span></a>
-      <a href="#services" data-tab="services">Services <span class="tabs__n" id="svcCount" hidden></span></a>
-      <a href="#guide" data-tab="guide">Guide</a>
-      <a href="#money" data-tab="money" data-staff>Money</a>
-      <a href="#accounts" data-tab="accounts" data-staff>Accounts</a>
+    <nav class="tabs" aria-label="Pages">
+      <a href="#how">How it works</a>
+      <a href="#who">Who it is for</a>
+      <a href="gallery.html">Gallery</a>
+      <a class="tabs__in" href="app.html">Sign in</a>
     </nav>
-    <span class="bar__who" id="who" hidden></span>
-    <button class="linkbtn bar__out" id="signOut" type="button" hidden>Sign out</button>
   </div>
 </header>
 
-<div class="role" id="roleBand" hidden></div>
+<main id="main">
 
-<p class="notice" id="demoNote" hidden>
-  Sample mode: accounts and data are saved in this browser only. Buyers' phones cannot see it.
-  <a href="?backend=supabase">Switch to the live database</a>
-</p>
+  <section class="wrap fhero">
+    <div class="fhero__text">
+      <p class="eyebrow">Home staging, Houston</p>
+      <h1 class="fhero__h">Staged with furniture a buyer can <em>take home</em></h1>
+      <p class="fhero__lede">We furnish a house for sale with pieces from the Hughes Living store and auction floor. Every piece carries a price and a QR code, so a buyer who likes the sofa can buy the sofa.</p>
+      <div class="fhero__acts">
+        <a class="btn" href="app.html">Start a staging</a>
+        <a class="btn btn--ghost" href="gallery.html">See the gallery</a>
+      </div>
+    </div>
+    <figure class="fhero__fig">
+      <img src="img/looks/look-open-plan.webp" alt="A staged open-plan living and dining room" width="1381" height="777" fetchpriority="high">
+      <figcaption>A style example. The pieces in a staged home are listed on that home&rsquo;s own page.</figcaption>
+    </figure>
+  </section>
 
-<main class="wrap view" id="view" tabindex="-1">
-  <p class="loading">Opening the office&hellip;</p>
+  <section class="wrap fsec" id="how">
+    <p class="eyebrow">How it works</p>
+    <h2 class="fsec__h">From an empty house to a <em>sold</em> sofa</h2>
+    <ol class="fsteps">
+      <li><span class="fsteps__n" aria-hidden="true">1</span>
+        <h3>Add the house</h3>
+        <p>Create an account, then enter the address and the dates you know: when the furniture goes in, when it comes out.</p></li>
+      <li><span class="fsteps__n" aria-hidden="true">2</span>
+        <h3>Choose the furniture</h3>
+        <p>Pick from what is free in our warehouse and place it room by room. The page tells you what a room is still missing.</p></li>
+      <li><span class="fsteps__n" aria-hidden="true">3</span>
+        <h3>Print the QR card and tags</h3>
+        <p>One card for the kitchen counter, one tag for every piece. Mark the house staged and the buyer page opens.</p></li>
+      <li><span class="fsteps__n" aria-hidden="true">4</span>
+        <h3>Buyers scan and buy</h3>
+        <p>They see every piece with its price and order from their phone. Hughes Living follows up, takes the payment and collects the piece.</p></li>
+    </ol>
+  </section>
+
+  <section class="fband" id="buyers">
+    <div class="wrap fband__in">
+      <div>
+        <p class="eyebrow">At a showing</p>
+        <h2 class="fsec__h">The buyer&rsquo;s side is a phone and a <em>price tag</em></h2>
+        <p>No app and no account. A buyer points a phone camera at the card or at a tag and gets that home&rsquo;s page: each room, each piece, its price, and whether it is still available.</p>
+        <ul class="flist">
+          <li><strong>Buy this piece.</strong> One piece, straight from its tag.</li>
+          <li><strong>Buy the look.</strong> Everything still available in the house, priced as one order.</li>
+          <li><strong>Ask a question.</strong> About a piece or the whole house.</li>
+        </ul>
+        <p class="fine">An order is a request to Hughes Living, not a card payment on the page. We contact the buyer to confirm it.</p>
+      </div>
+      <div class="rooms3 fband__rooms">
+        <figure class="rooms3__f"><img src="img/looks/room-living.webp" alt="A staged living room" loading="lazy" width="640" height="800"><figcaption>Living room</figcaption></figure>
+        <figure class="rooms3__f"><img src="img/looks/room-dining.webp" alt="A staged dining room" loading="lazy" width="640" height="800"><figcaption>Dining room</figcaption></figure>
+        <figure class="rooms3__f"><img src="img/looks/room-bedroom.webp" alt="A staged bedroom" loading="lazy" width="640" height="800"><figcaption>Bedroom</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap fsec" id="who">
+    <p class="eyebrow">Who it is for</p>
+    <h2 class="fsec__h">Three ways to <em>stage</em></h2>
+    <div class="fwho">
+      <article class="fwho__c" data-role="self">
+        <h3>Staging it myself</h3>
+        <p class="fwho__for">A homeowner getting their own house ready to sell.</p>
+        <ul class="flist">
+          <li>One house, walked through six plain steps</li>
+          <li>Buyer interest as it comes in</li>
+          <li>Carpet cleaning on request before the furniture goes in</li>
+        </ul>
+        <a class="btn btn--ghost" href="app.html?as=self">Create a homeowner account</a>
+      </article>
+      <article class="fwho__c" data-role="designer">
+        <h3>Interior designer</h3>
+        <p class="fwho__for">Designers staging for clients, with several houses going at once.</p>
+        <ul class="flist">
+          <li>A board of projects: planned, staged, finished</li>
+          <li>Go-in and come-out days in one list</li>
+          <li>What is free in the warehouse right now</li>
+        </ul>
+        <a class="btn btn--ghost" href="app.html?as=designer">Create a designer account</a>
+      </article>
+      <article class="fwho__c" data-role="realtor">
+        <h3>Realtor</h3>
+        <p class="fwho__for">Agents staging their listings, with a QR code for every showing.</p>
+        <ul class="flist">
+          <li>Each listing: is the QR page open, and how often it was opened</li>
+          <li>Who asked for a piece, by listing</li>
+          <li>A buyer link to send after a showing</li>
+        </ul>
+        <a class="btn btn--ghost" href="app.html?as=realtor">Create a realtor account</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="wrap fsec fcredit" id="credit" hidden>
+    <div>
+      <p class="eyebrow">When a piece sells</p>
+      <h2 class="fsec__h"><span id="pct"></span>% of the sale comes off your <em>staging fee</em></h2>
+    </div>
+    <div>
+      <p>Hughes Living sets a staging fee for each house. Every piece that sells out of a house you are staging earns a credit against that fee, worked out on the price it sold for.</p>
+      <p class="fine">It is a credit on the fee, not a payment, and it cannot take the fee below $0. Your running total is on your dashboard.</p>
+    </div>
+  </section>
+
+  <section class="wrap fsec" id="looks">
+    <div class="head">
+      <div>
+        <p class="eyebrow">Gallery</p>
+        <h2 class="fsec__h">Rooms, the way we <em>stage them</em></h2>
+      </div>
+      <a class="btn btn--ghost" href="gallery.html">All nine looks</a>
+    </div>
+    <div class="flooks">
+      <a href="gallery.html"><img src="img/looks/look-stone-hearth-sm.webp" alt="A living room staged around a stone hearth" loading="lazy" width="800" height="450"></a>
+      <a href="gallery.html"><img src="img/looks/look-fireside-sm.webp" alt="A fireside sitting room" loading="lazy" width="800" height="450"></a>
+      <a href="gallery.html"><img src="img/looks/look-navy-accent-sm.webp" alt="A living room with a navy accent wall" loading="lazy" width="800" height="450"></a>
+    </div>
+    <p class="fine">Style examples, not photographs of client homes.</p>
+  </section>
+
+  <section class="fband fband--end">
+    <div class="wrap fend">
+      <h2 class="fsec__h">Have a house going on the <em>market?</em></h2>
+      <div class="fhero__acts">
+        <a class="btn" href="app.html">Start a staging</a>
+        <a class="btn btn--ghost" href="app.html">Sign in</a>
+      </div>
+      <p class="fend__contact" id="contact" hidden></p>
+    </div>
+  </section>
 </main>
 
-<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle"></dialog>
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<footer class="wrap foot">
+  <p class="foot__mark">Hughes Living <em>Staging</em></p>
+  <p>Furniture from <a href="https://hugheslivingco.com/">Hughes Living Co.</a> and <a href="https://hugheslivingauctions.com/">Hughes Living Auctions</a>.</p>
+  <p><a href="gallery.html">Gallery</a> · <a href="app.html">Sign in</a></p>
+</footer>
 
-<script src="config.js?v=7"></script>
-<script src="api.js?v=9"></script>
-<script src="guide.js?v=3"></script>
-<script src="app.js?v=14"></script>
+<script src="config.js?v=8"></script>
+<script>
+  (function () {
+    var C = window.HLS_CONFIG || {};
+    var pct = Number(C.saleCreditPct) || 0;
+    if (pct) { document.getElementById('pct').textContent = pct; document.getElementById('credit').hidden = false; }
+    // contact details show only once they are filled in (config.js)
+    var bits = [];
+    if (C.contactPhone) bits.push('<a href="tel:' + String(C.contactPhone).replace(/[^\d+]/g, '') + '">' + String(C.contactPhone).replace(/[<>&]/g, '') + '</a>');
+    if (C.contactEmail && /^[^\s<>"']+@[^\s<>"']+$/.test(C.contactEmail)) bits.push('<a href="mailto:' + C.contactEmail + '">' + C.contactEmail + '</a>');
+    if (bits.length) { var el = document.getElementById('contact'); el.innerHTML = 'Or reach us: ' + bits.join(' · '); el.hidden = false; }
+  })();
+</script>
 </body>
 </html>

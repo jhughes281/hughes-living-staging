@@ -38,7 +38,10 @@
                                crew with totes ('move'). Priced the same way.
      setService(id, status)    staff: any status. A customer: cancel their own
                                request while it is still new.
-     office() also returns services: the caller's own, or all of them for staff. */
+     office() also returns services: the caller's own, or all of them for staff,
+                               and scans: [{ house_id, day, n }] opens of each buyer page.
+     scan(code)                the buyer page says it was opened. Never fails.
+     setRequestPay(id, url, paid)   staff: a payment link on an order, and paid or not. */
 
 (function (global) {
   'use strict';
@@ -107,7 +110,7 @@
 
   /* ================================================================ demo */
   function demoBackend() {
-    var KEY = 'hls-demo-v6', SKEY = 'hls-demo-session';
+    var KEY = 'hls-demo-v7', SKEY = 'hls-demo-session';
 
     function seed() {
       var day = 86400000, now = Date.now();
@@ -195,12 +198,18 @@
         { id: 1, house_id: 1, account_id: 2, service: 'carpet', rooms: 3, addons: ['addon_hall'], estimate_cents: 14400,
           preferred_on: date(15), note: 'Sample request.', status: 'done', created_at: iso(18) }
       ];
-      return { houses: houses, items: items, moves: moves, requests: requests, accounts: accounts, services: services, catalog: [],
+      // opens of the two staged sample houses' buyer pages over the last two weeks
+      var scans = [];
+      [3, 5, 2, 6, 4, 1, 0, 7, 9, 4, 3, 8, 6, 5].forEach(function (n, k) {
+        if (n && k < 12) scans.push({ house_id: 1, day: date(k), n: n });
+        if (n + 2 > 3) scans.push({ house_id: 6, day: date(k), n: n + 2 });
+      });
+      return { houses: houses, items: items, moves: moves, requests: requests, accounts: accounts, services: services, scans: scans, catalog: [],
                seq: { house: 7, item: 15, move: 20, req: 4, tag: 1015, account: 5, service: 2 } };
     }
 
     function load() {
-      try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.houses && s.services) return s; } catch (e) {}
+      try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.houses && s.services && s.scans) return s; } catch (e) {}
       var fresh = seed(); save(fresh); return fresh;
     }
     function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
@@ -290,7 +299,7 @@
         var s = load(), a = need(s);
         if (a.kind === 'owner') {
           return ok({ houses: s.houses.slice().reverse(), items: s.items, requests: s.requests.slice().reverse(),
-                      moves: s.moves, catalog_count: s.catalog.length, services: s.services.slice().reverse(),
+                      moves: s.moves, catalog_count: s.catalog.length, services: s.services.slice().reverse(), scans: s.scans,
                       accounts: s.accounts.filter(function (x) { return x.kind !== 'owner'; })
                         .map(function (x) { return pick(x, ['id', 'kind', 'name', 'studio', 'phone', 'email', 'created_at']); }) });
         }
@@ -311,6 +320,7 @@
           }),
           moves: s.moves.filter(function (m) { return ids[m.house_id]; }),
           services: s.services.filter(function (v) { return ids[v.house_id]; }).reverse(),
+          scans: s.scans.filter(function (c) { return ids[c.house_id]; }),
           catalog_count: 0, accounts: []
         });
       },
@@ -410,6 +420,7 @@
         s.moves = s.moves.filter(function (m) { return m.house_id !== id; });
         s.requests = s.requests.filter(function (r) { return r.house_id !== id; });
         s.services = s.services.filter(function (v) { return v.house_id !== id; });
+        s.scans = s.scans.filter(function (c) { return c.house_id !== id; });
         s.items.forEach(function (x) { if (x.sold_house_id === id) x.sold_house_id = null; });
         save(s); return ok();
       },
@@ -419,6 +430,23 @@
         save(s); return ok();
       },
 
+      scan: function (c) {
+        var s = load(), day = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+        var h = s.houses.filter(function (x) { return x.code === (c || '').trim().toUpperCase() && x.status === 'staged'; })[0];
+        if (!h) return ok();
+        var row = s.scans.filter(function (x) { return x.house_id === h.id && x.day === day; })[0];
+        row ? row.n++ : s.scans.push({ house_id: h.id, day: day, n: 1 });
+        save(s); return ok();
+      },
+      setRequestPay: function (id, url, paid) {
+        var s = load(); need(s, true);
+        url = txt(url);
+        if (url && !/^https:\/\/\S+$/i.test(url)) return no('A payment link starts with https://');
+        var r = s.requests.filter(function (x) { return x.id === id; })[0];
+        if (!r) return no('That request no longer exists.');
+        r.pay_url = url; r.paid_at = paid ? (r.paid_at || new Date().toISOString()) : null;
+        save(s); return ok();
+      },
       requestService: function (p) {
         var s = load(), a = need(s), staff = a.kind === 'owner';
         var h = s.houses.filter(function (x) { return x.id === int(p.house_id); })[0];
@@ -652,9 +680,12 @@
       office: function () {
         // services arrive through their own door (0003), so the houses still open if it is not installed yet
         return Promise.all([rpc(staff ? 'stg_office' : 'stg_portal'),
-                            rpc('stg_services_list').catch(function () { return []; })])
-          .then(function (r) { r[0].services = r[1] || []; return r[0]; });
+                            rpc('stg_services_list').catch(function () { return []; }),
+                            rpc('stg_scans_list').catch(function () { return null; })])      // 0005 not installed yet
+          .then(function (r) { r[0].services = r[1] || []; r[0].scans = r[2] || []; r[0].scansOff = r[2] === null; return r[0]; });
       },
+      scan: function (code) { return rpc('stg_scan', { p_code: code }).catch(function () {}); },
+      setRequestPay: function (id, url, paid) { return rpc('stg_set_request_pay', { p_id: id, p_url: url || null, p_paid: !!paid }); },
       requestService: function (p) { return rpc('stg_service_request', { p: p }); },
       setService: function (id, status) { return rpc('stg_set_service', { p_id: id, p_status: status }); },
       saveHouse: function (h) { return rpc(staff ? 'stg_save_house' : 'stg_portal_save_house', { p: h }); },
@@ -710,7 +741,7 @@
   function alertOffice(subject, lines) {
     var key = (CFG.alerts || {}).web3formsKey;
     if (!key || CFG.backend !== 'supabase' || typeof fetch !== 'function') return Promise.resolve(false);
-    var office = (CFG.publicBase || location.href.replace(/[^/]*([?#].*)?$/, ''));
+    var office = (CFG.publicBase || location.href.replace(/[^/]*([?#].*)?$/, '')) + 'app.html';
     var body = new FormData();
     body.append('access_key', key);
     body.append('subject', subject + ' - Hughes Living Staging');

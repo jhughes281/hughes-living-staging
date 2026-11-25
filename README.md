@@ -5,7 +5,8 @@ and sell the furniture out of the house.
 
 | Page | Who | What |
 |---|---|---|
-| `index.html` | anyone signed in | Sign-in, then Home (customers), Houses, Furniture, Requests, Services (plus Money and Accounts for staff) |
+| `index.html` | the public | The front page: how it works, who it is for, the credit, the gallery. Anything arriving with a `#` is passed to `app.html` |
+| `app.html` | anyone signed in | Sign-in, then Home (customers), Houses, Furniture, Requests, Services (plus Money and Accounts for staff) |
 | `house.html?h=CODE` | buyers | What a house's QR code opens: every piece, by room, with price and "I want this" |
 | `card.html?h=CODE` | anyone signed in | Printable counter sign with the house QR, plus a hang tag per piece |
 
@@ -69,7 +70,7 @@ and Money (where profit is net of it). Hughes Living bills the fee after credit.
 what was typed.
 
 **Forgot your password.** The sign-in sheet emails a reset link
-(`requestReset`); the link comes back to `index.html` with the session after
+(`requestReset`); the link comes back to `app.html` with the session after
 the `#`, which `arrival()` reads once and wipes, and the page asks for a new
 password. For the link to land here, add
 `https://jhughes281.github.io/hughes-living-staging/**` under Supabase >
@@ -83,6 +84,19 @@ and a new customer account each send one email through Web3Forms
 email names what arrived and the house, never a buyer's or customer's contact
 details, and links to the office. It is sent from the visitor's browser after
 the row is saved, so a blocked request loses the email, not the order.
+
+## QR page opens, and payment links
+
+**Opens.** The buyer page calls `stg_scan` once per browser session, which adds
+one to that house's count for the day (`stg_scans`: house, day, number, and
+nothing about the visitor). House pages and all three dashboards show the
+total and the last seven days. It counts opens, not people.
+
+**Payment link.** On an order in Requests the office can paste the link to a
+checkout made elsewhere (a Shopify draft order's invoice, a card processor's
+payment link), copy a ready-made message to the buyer, and mark the order
+paid. No card data touches this site and customers never receive the link.
+Both need `supabase/0005_scans_payments.sql` (independent of 0003 and 0004).
 
 ## Which login is this, and the Guide
 

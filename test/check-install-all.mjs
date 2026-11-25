@@ -15,7 +15,7 @@ const pg = require('pg');
 
 const sql = (f) => readFileSync(join(here, '..', 'supabase', f), 'utf8');
 const all = sql('install-all.sql');
-const parts = ['0001_staging.sql', '0002_accounts.sql', '0003_services.sql', '0004_move_tote.sql'];
+const parts = ['0001_staging.sql', '0002_accounts.sql', '0003_services.sql', '0004_move_tote.sql', '0005_scans_payments.sql'];
 let at = 0, inOrder = true;
 for (const f of parts) { const i = all.indexOf(sql(f), at); if (i < 0) inOrder = false; at = i + 1; }
 
@@ -42,7 +42,7 @@ try {
   const t = (await db.query(`select count(*)::int n from information_schema.tables where table_schema='public' and table_name like 'stg\\_%'`)).rows[0].n;
   const f = (await db.query(`select count(distinct proname)::int n from pg_proc where proname like 'stg\\_%'`)).rows[0].n;
   console.log(`ok    ran twice with no error: ${t} stg_ tables, ${f} stg_ functions`);
-  if (t !== 7) { bad++; console.log('FAIL  expected 7 stg_ tables'); }
+  if (t !== 8) { bad++; console.log('FAIL  expected 8 stg_ tables'); }
 } catch (e) {
   bad++;
   console.log('FAIL  ' + e.message);

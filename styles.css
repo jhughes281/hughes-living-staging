@@ -692,3 +692,6 @@ body[data-role] .step--next .step__s{ color:var(--role); }
 /* realtor rows carry a fifth number: the sales credit */
 .lrow__nums{ grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr)); gap:.7rem 1rem; }
 .grid td small{ white-space:nowrap; }
+
+.role__who{ font-weight:700; margin-right:.7rem; }
+@media (max-width: 520px){ .role__who{ display:block; margin:0; } }

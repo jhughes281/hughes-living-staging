@@ -1453,7 +1453,9 @@
       document.title = (role ? role.name + ' · ' : '') + 'Hughes Living Staging';
       band.hidden = !role;
       band.innerHTML = role ? '<div class="wrap role__in"><span class="role__k">' + esc(role.name) + ' login</span>' +
-        '<span class="role__l">' + esc((s.staff ? '' : (s.studio || s.name || s.email || '') + '. ') + role.line) + '</span>' +
+        // the person, then their business if they gave one: "Jane Smith · Smith Interiors"
+        '<span class="role__l">' + (s.staff ? '' : '<strong class="role__who">' +
+          esc([s.name, s.studio !== s.name && s.studio].filter(Boolean).join(' · ') || s.email || '') + '</strong>') + esc(role.line) + '</span>' +
         '<a href="#guide/login">What this login can do</a></div>' : '';
       if (!s.signedIn) return doorView();
       if (!s.kind) return finishView();

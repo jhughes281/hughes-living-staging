@@ -57,6 +57,27 @@
           { key: 'addon_scotchgard', label: 'Scotchgard', cents: 3900 },
           { key: 'addon_sofa', label: 'Sofa or loveseat', cents: 7900 }
         ]
+      },
+
+      // Hughes Move & Tote Co. A copy of the RATES object on its own site
+      // (hughes-move-tote/index.html) and of stg_move_estimate() in
+      // supabase/0004_move_tote.sql; the same test compares all three. The
+      // mobile app repo is NOT a source: its prices were made up by a generator.
+      move: {
+        name: 'Hughes Move & Tote Co.',
+        url: 'https://jhughes281.github.io/hughes-move-tote/',
+        toteTiers: [                       // rental only, per tote per week; first match wins
+          { min: 40, cents: 225 },
+          { min: 20, cents: 275 },
+          { min: 0, cents: 350 }
+        ],
+        toteWithMoveCents: 150,            // per tote per week when booked with the crew
+        toteMinimumCents: 9900,            // floor on a rental-only order
+        truckHourlyCents: { '16ft': 10900, '26ft': 12900 },   // includes 2 movers
+        extraMoverCents: 4500,             // per mover beyond 2, per hour
+        tripFeeCents: 9500,
+        minHours: 2,
+        maxHours: 12, maxMovers: 4, maxTotes: 200, maxWeeks: 12   // limits of this form, not of the business
       }
     }
   };

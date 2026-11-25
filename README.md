@@ -43,6 +43,17 @@ data layer, never by the page. The prices live in three places that a test
 keeps equal: Richard's `pricing.js`, `services.carpet` in `config.js`, and
 `stg_carpet_estimate()` in `supabase/0003_services.sql`.
 
+## Services: Hughes Move & Tote
+
+The second service on the Services tab: totes on their own, or a truck and
+crew with totes, for clearing a house before it is staged or moving once it
+sells. Same rules as the cleaning: a request to the office, priced by the data
+layer. The rates are copied from the `RATES` object on Move & Tote's own
+site into `services.move` in `config.js` and `stg_move_estimate()` in
+`supabase/0004_move_tote.sql`, and a test keeps the three equal. The
+Hughes-move-tote-mobile app repo is not a source: its prices are generator
+filler. Clothes bags and wardrobe boxes are not in the form.
+
 ## Which login is this, and the Guide
 
 Each login has its own colour (green homeowner, clay designer, slate realtor,
@@ -69,7 +80,7 @@ explains; `?backend=supabase` switches).
 
 ## Going live
 
-1. Run `supabase/0001_staging.sql`, `supabase/0002_accounts.sql`, then `supabase/0003_services.sql`, in the Supabase SQL editor (all safe to re-run).
+1. Run `supabase/0001_staging.sql`, `0002_accounts.sql`, `0003_services.sql`, then `0004_move_tote.sql` in the Supabase SQL editor, or paste `supabase/install-all.sql`, which is all four in order (all safe to re-run).
    Verify by querying for `stg_houses`, not by reading the result banner.
 2. Publish this folder to GitHub Pages. `publicBase` in `config.js` is the
    address printed into every QR code, so set it before printing cards.

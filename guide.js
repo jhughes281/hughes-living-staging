@@ -19,7 +19,7 @@
       name: 'Staging it myself',
       line: 'One house: your own. You choose the furniture and buyers scan a QR code to buy it.',
       can: ['Add your house and its dates', 'Choose from the furniture that is free in the Hughes Living warehouse, room by room',
-            'Print the QR card for the house and a tag for every piece', 'See what buyers ask for', 'Request a carpet cleaning'],
+            'Print the QR card for the house and a tag for every piece', 'See what buyers ask for', 'Request a carpet cleaning, or totes and a moving crew'],
       hughes: ['Sets the staging fee', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     designer: {
@@ -27,7 +27,7 @@
       line: 'Several client houses at once, all drawing on the same Hughes Living warehouse.',
       can: ['Add a house for each client, with the client on file', 'Place and send back warehouse pieces across all your projects',
             'Keep go-in and come-out days, so they show under Coming up', 'Print QR cards and tags for each house',
-            'See what buyers ask for in your houses', 'Request a carpet cleaning before install day'],
+            'See what buyers ask for in your houses', 'Request a carpet cleaning, or totes and a moving crew'],
       hughes: ['Sets the staging fee for each house', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     realtor: {
@@ -35,7 +35,7 @@
       line: 'Your listings, each with a QR code buyers scan at a showing.',
       can: ['Add each listing, with the seller on file and the listing link', 'Choose warehouse furniture for a listing, room by room',
             'Print the QR card and tags, and copy the buyer link to send', 'See who scanned and what they asked for',
-            'Request a carpet cleaning before the listing photos'],
+            'Request a carpet cleaning, or totes and a moving crew for a seller'],
       hughes: ['Sets the staging fee for each listing', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     owner: {
@@ -75,6 +75,7 @@
     { id: 'before', title: 'Before any furniture goes in', when: 'empty',
       lead: 'Furniture hides nothing. An empty house is the one chance to fix what a buyer will notice.',
       points: ['Take down family photos, collections and anything on the fridge. Buyers should picture their own things.',
+               'Pack what is leaving the house before anything else. Totes, and a crew if you want one, can be requested from the Services tab.',
                'Deep clean, carpets included, while the rooms are empty. A cleaning can be requested from the Services tab.',
                'Patch nail holes and touch up paint. One light neutral through the main rooms photographs best.',
                'Fix what a buyer will try: sticking doors, dripping taps, loose handles, dead switches.',
@@ -144,7 +145,7 @@
     { id: 'office', title: 'Running the office', who: ['owner'],
       lead: 'The office is the only login that sees cost, buyers&rsquo; contact details and every account.',
       points: ['Requests: every order and question from a buyer page. Call or write, then set it Contacted, Sold or Closed.',
-               'Services: carpet cleanings customers have asked for. Arrange the visit, then set it Scheduled and Done.',
+               'Services: carpet cleanings and Move &amp; Tote jobs customers have asked for. Arrange each one, then set it Scheduled and Done.',
                'Furniture: add a piece by hand, from the store catalog (load the Shopify export once) or from an auction lot. Cost stays in the office.',
                'To hand a house to a customer, open it, choose Edit and set Staged by. The staging fee is set on the same form.',
                'Money: profit per house is the fee plus sales, less what the sold pieces cost. Truck, labor, storage and sales tax are not in it.'] }

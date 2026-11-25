@@ -1,5 +1,5 @@
 // Runs supabase/install-all.sql (the one-paste file) on a throwaway Postgres,
-// twice, on top of the auction core, and checks it is still the three numbered
+// twice, on top of the auction core, and checks it is still the numbered
 // files in order:  node test/check-install-all.mjs
 import { createRequire } from 'node:module';
 import { readFileSync, readdirSync, rmSync, existsSync } from 'node:fs';
@@ -15,7 +15,7 @@ const pg = require('pg');
 
 const sql = (f) => readFileSync(join(here, '..', 'supabase', f), 'utf8');
 const all = sql('install-all.sql');
-const parts = ['0001_staging.sql', '0002_accounts.sql', '0003_services.sql'];
+const parts = ['0001_staging.sql', '0002_accounts.sql', '0003_services.sql', '0004_move_tote.sql'];
 let at = 0, inOrder = true;
 for (const f of parts) { const i = all.indexOf(sql(f), at); if (i < 0) inOrder = false; at = i + 1; }
 
@@ -29,7 +29,7 @@ await db.connect();
 db.on('notice', () => {});
 
 let bad = inOrder ? 0 : 1;
-console.log(inOrder ? 'ok    install-all.sql holds the three numbered files, unchanged and in order'
+console.log(inOrder ? 'ok    install-all.sql holds every numbered file, unchanged and in order'
                     : 'FAIL  install-all.sql is out of date: rebuild it from the numbered files');
 try {
   const mig = join(AUCTIONS, 'supabase', 'migrations');

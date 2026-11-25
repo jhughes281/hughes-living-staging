@@ -449,11 +449,14 @@
     '<p class="fine">Hughes Living follows up with each buyer and takes the payment. <a href="#requests">All requests</a></p>';
   }
 
-  function svcBand(line) {
-    if (!CARPET) return '';
-    return '<aside class="svc"><div><p class="eyebrow">Service</p><h2 class="svc__h">' + line + '</h2>' +
+  function svcBand(line, moveLine) {
+    var mv = (CFG.services || {}).move;
+    return (CARPET && line ? '<aside class="svc"><div><p class="eyebrow">Service</p><h2 class="svc__h">' + line + '</h2>' +
       '<p>' + esc(CARPET.name) + '. First room ' + money(CARPET.firstRoomCents) + ', each room after that ' + money(CARPET.extraRoomCents) + '.</p></div>' +
-      '<a class="btn btn--ghost" href="#services">Request a cleaning</a></aside>';
+      '<a class="btn btn--ghost" href="#services/carpet">Request a cleaning</a></aside>' : '') +
+      (mv && moveLine ? '<aside class="svc svc--2"><div><p class="eyebrow">Service</p><h2 class="svc__h">' + moveLine + '</h2>' +
+      '<p>' + esc(mv.name) + '. Totes from ' + money(mv.toteTiers[0].cents) + ' each a week, crews from ' + money(mv.truckHourlyCents['16ft']) + ' an hour.</p></div>' +
+      '<a class="btn btn--ghost" href="#services/move">Request totes or a crew</a></aside>' : '');
   }
   function qrActs(h) {
     var code = encodeURIComponent(h.code);
@@ -467,7 +470,7 @@
   function renderHomeSelf() {
     var h = D.houses.filter(function (x) { return x.status !== 'destaged'; })[0] || D.houses[0];
     var s = h ? stats(h) : null, rooms = h ? roomsOf(h) : [];
-    var cleaning = h && D.services.filter(function (v) { return v.house_id === h.id && v.status !== 'cancelled'; })[0];
+    var cleaning = h && D.services.filter(function (v) { return v.house_id === h.id && v.status !== 'cancelled' && (v.service || 'carpet') === 'carpet'; })[0];
     var out = h ? daysTo(h.destage_on) : null;
     var hid = h ? h.id : '';
 
@@ -483,7 +486,7 @@
       { t: 'Get the carpets cleaned', opt: true, done: !!cleaning, s: cleaning ? SSTATUS[cleaning.status] : '',
         d: cleaning ? SSTATUS[cleaning.status] + (cleaning.preferred_on ? ', asked for ' + shortDate(cleaning.preferred_on) : '') + '. ' + money(cleaning.estimate_cents) + ' estimate.'
           : 'Before the furniture goes in. ' + (CARPET ? 'First room ' + money(CARPET.firstRoomCents) + ' with ' + esc(CARPET.name) + '.' : ''),
-        more: h ? '<a href="#services">' + (cleaning ? 'See the request' : 'Request a cleaning') + '</a>' : '' },
+        more: h ? '<a href="#services/carpet">' + (cleaning ? 'See the request' : 'Request a cleaning') + '</a>' : '' },
       { t: 'Staging fee', wait: true, done: !!h && h.fee_cents > 0, s: h && h.fee_cents ? 'Set' : '',
         d: h && h.fee_cents ? money(h.fee_cents) + ', set by Hughes Living.' : 'Hughes Living sets this. Not set yet.' },
       { t: 'Mark the house staged', done: !!h && h.status !== 'planned',
@@ -540,7 +543,8 @@
         (h ? '<div class="head__acts"><a class="btn btn--ghost" href="#house/' + h.id + '">Open the house</a></div>' : '') + '</div>' +
       '<div class="dash"><div>' + stepHtml + '</div><aside>' + side + '</aside></div>' +
       roomHtml +
-      tipBox(topicForHouse(h), h ? 'for where your house is now' : 'before you start');
+      tipBox(topicForHouse(h), h ? 'for where your house is now' : 'before you start') +
+      svcBand('', 'Totes and a crew to clear the house out first');
   }
 
   /* ---------- interior designer: several client projects and their dates ---------- */
@@ -578,7 +582,7 @@
     D.services.forEach(function (v) {
       var h = house(v.house_id);
       if (h && v.preferred_on && (v.status === 'new' || v.status === 'scheduled')) {
-        ev.push({ on: v.preferred_on, t: 'Carpet cleaning, ' + SSTATUS[v.status].toLowerCase(), h: h });
+        ev.push({ on: v.preferred_on, t: (v.service === 'move' ? 'Move & Tote, ' : 'Carpet cleaning, ') + SSTATUS[v.status].toLowerCase(), h: h });
       }
     });
     ev = ev.filter(function (e) { return daysTo(e.on) <= 42; }).sort(function (a, b) { return a.on < b.on ? -1 : 1; });
@@ -615,7 +619,7 @@
         feed(D.requests.slice(0, 4), true, 'Nobody yet. Orders from your staged houses show here.') +
       '</aside></div>' +
       tipBox(D.houses.length ? topic('projects') : topic('rooms'), D.houses.length ? '' : 'before your first project') +
-      svcBand('Carpets cleaned before install day');
+      svcBand('Carpets cleaned before install day', 'Totes and a crew when a client&rsquo;s rooms need clearing');
   }
 
   /* ---------- realtor: which listings have a live QR code, and who scanned ---------- */
@@ -653,7 +657,7 @@
         '<h2 class="h2">Waiting on you</h2>' + todoList(live) +
       '</aside></div>' +
       tipBox(D.houses.some(function (h) { return h.status === 'staged'; }) ? topic('link') : topic('photos'), '') +
-      svcBand('Carpets cleaned before the listing photos');
+      svcBand('Carpets cleaned before the listing photos', 'Totes and a crew to help a seller clear out');
   }
 
   function renderHome() {
@@ -663,80 +667,156 @@
   }
 
   /* ============================================================== services
-     A request to the office, like a buyer's order: no booking is made and no
-     money moves. The running total is for show; the data layer prices it again. */
+     Two services a customer can ask for at one of their houses: Richard's
+     carpet cleaning, and Hughes Move & Tote (totes, or a crew with totes).
+     Each is a request to the office, like a buyer's order: no booking is made
+     and no money moves. The running total is for show; the data layer prices
+     it again from its own copy of the rates. */
+  var MOVE = (CFG.services || {}).move;
+  var SVCNAME = { carpet: 'Carpet cleaning', move: 'Move & Tote' };
   function svcSummary(v) {
-    try { return window.HLS.carpetQuote(v.rooms, v.addons).lines.map(function (l) { return l.label; }).join(' + '); }
-    catch (e) { return plural(v.rooms, 'room'); }
+    try {
+      if (v.service === 'move') {
+        var d = v.details || {};
+        return (d.mode === 'move' ? d.hours + ' hours, ' + String(d.truck).replace('ft', ' ft') + ' truck, ' + d.movers + ' movers' + (d.totes ? ', ' : '') : '') +
+          (d.totes ? plural(d.totes, 'tote') + ' for ' + plural(d.weeks, 'week') : '');
+      }
+      return window.HLS.carpetQuote(v.rooms, v.addons).lines.map(function (l) { return l.label; }).join(' + ');
+    } catch (e) { return ''; }
   }
   function svcCard(v) {
     var h = house(v.house_id), a = ME.staff && v.account_id != null && account(v.account_id);
+    var what = SVCNAME[v.service] || SVCNAME.carpet;
     return '<article class="req' + (ME.staff && v.status === 'new' ? ' req--new' : '') + '">' +
       '<header><strong>' + esc(h ? h.address : 'A house that was deleted') + '</strong><time>' + fmtDate(v.created_at) + '</time></header>' +
-      '<p class="req__what">Carpet cleaning: ' + esc(svcSummary(v)) + '</p>' +
+      '<p class="req__what">' + what + ': ' + esc(svcSummary(v)) + '</p>' +
       '<p><span class="tagno">' + money(v.estimate_cents) + '</span> estimate' + (v.preferred_on ? ' · asked for ' + fmtDate(v.preferred_on) : '') + '</p>' +
       (v.note ? '<p class="req__note">&ldquo;' + esc(v.note) + '&rdquo;</p>' : '') +
       (ME.staff
         ? '<p class="req__reach">Asked by ' + (a ? esc(a.studio || a.name) + (a.email ? ' · <a href="mailto:' + esc(a.email) + '">' + esc(a.email) + '</a>' : '') : 'Hughes Living') + '</p>' +
-          '<label class="vh" for="sv' + v.id + '">Status of the cleaning at ' + esc(h ? h.address : 'a deleted house') + '</label>' +
+          '<label class="vh" for="sv' + v.id + '">Status of the ' + what.toLowerCase() + ' request at ' + esc(h ? h.address : 'a deleted house') + '</label>' +
           '<select class="mini" id="sv' + v.id + '" data-act="svc-status" data-id="' + v.id + '">' + opts(SSTATUS, v.status) + '</select>'
         : '<p class="req__reach">' + chip(v.status === 'scheduled' ? 'staged' : v.status === 'new' ? 'hold' : 'x', SSTATUS[v.status]) +
           (v.status === 'new' ? ' <button class="linkbtn" type="button" data-act="cancel-service" data-id="' + v.id + '">Cancel this request</button>' : '') + '</p>') +
     '</article>';
   }
+  /* What the Move & Tote form currently says, in the shape the data layer takes. */
+  function moveChoice(form) {
+    var f = formData(form);
+    return { service: 'move', house_id: Number(f.house_id), mode: f.mode, totes: Number(f.totes || 0), weeks: Number(f.weeks),
+             truck: f.truck, movers: Number(f.movers), hours: Number(f.hours), preferred_on: f.preferred_on, note: f.note };
+  }
   function svcSum() {
-    var form = document.getElementById('svcForm'), box = document.getElementById('svcSum');
+    var form = document.getElementById('svcForm') || document.getElementById('mvForm'), box = document.getElementById('svcSum');
     if (!form || !box) return;
-    var picks = Array.prototype.filter.call(form.querySelectorAll('[name=addon]'), function (c) { return c.checked; })
-      .map(function (c) { return c.value; });
-    var q = window.HLS.carpetQuote(form.elements.rooms.value, picks);
+    var q;
+    try {
+      if (form.getAttribute('id') === 'mvForm') {
+        var crew = form.elements.mode.value === 'move';
+        document.getElementById('mvCrew').hidden = !crew;
+        document.querySelector('label[for=f_totes]').textContent = crew ? 'Totes (0 for none)' : 'Totes';
+        q = window.HLS.moveQuote(moveChoice(form));
+      } else {
+        q = window.HLS.carpetQuote(form.elements.rooms.value, Array.prototype.filter.call(form.querySelectorAll('[name=addon]'),
+          function (c) { return c.checked; }).map(function (c) { return c.value; }));
+      }
+    } catch (e) { box.innerHTML = '<div><span>' + esc(e.message) + '</span></div>'; return; }
     box.innerHTML = q.lines.length
       ? q.lines.map(function (l) { return '<div><span>' + esc(l.label) + '</span><span class="num">' + money(l.cents) + '</span></div>'; }).join('') +
         '<div class="est__t"><span>Estimate</span><span class="num">' + money(q.total_cents) + '</span></div>'
       : '<div><span>Choose at least one room or add-on.</span></div>';
   }
-  function renderServices() {
-    if (!CARPET) { view.innerHTML = '<p class="empty">No services are set up.</p>'; return; }
+  var priceRows = function (rows) {
+    return '<dl class="prices">' + rows.map(function (r) { return '<div><dt>' + r[0] + '</dt><dd>' + r[1] + '</dd></div>'; }).join('') + '</dl>';
+  };
+  var numOpts = function (lo, hi, cur, word) {
+    var o = '';
+    for (var n = lo; n <= hi; n++) o += '<option value="' + n + '"' + (n === cur ? ' selected' : '') + '>' + plural(n, word) + '</option>';
+    return o;
+  };
+
+  function renderServices(which) {
+    var list = [CARPET && 'carpet', MOVE && 'move'].filter(Boolean);
+    if (!list.length) { view.innerHTML = '<p class="empty">No services are set up.</p>'; return; }
+    if (list.indexOf(which) === -1) which = list[0];
     var houses = D.houses.filter(function (h) { return h.status !== 'destaged'; });
-    var roomOpts = '';
-    for (var n = 0; n <= CARPET.maxRooms; n++) roomOpts += '<option value="' + n + '"' + (n === 3 ? ' selected' : '') + '>' + (n ? plural(n, 'room') : 'No rooms, add-ons only') + '</option>';
+    var houseField = field(ME.kind === 'realtor' ? 'Listing' : 'House', 'house_id', '', { select: houses.map(function (h) {
+      return '<option value="' + h.id + '">' + esc(h.address) + '</option>'; }).join('') });
+    var tail = function (hint, ph, fine) {
+      return field('Day you would like', 'preferred_on', '', { type: 'date', hint: hint }) +
+        field('Anything the crew should know', 'note', '', { area: true, ph: ph }) +
+        '<div class="est" id="svcSum" aria-live="polite"></div>' +
+        '<p class="sheet__err" role="alert"></p>' +
+        '<button class="btn btn--block" type="submit">Send the request</button>' +
+        '<p class="fine">This is a request, not a booking, and no payment is taken here. Hughes Living arranges it and confirms the day with you. ' + fine + '</p>';
+    };
+    var about, form;
 
-    var form = houses.length
-      ? '<form class="svcform" id="svcForm" novalidate>' +
-          field(ME.kind === 'realtor' ? 'Listing' : 'House', 'house_id', '', { select: houses.map(function (h) {
-            return '<option value="' + h.id + '">' + esc(h.address) + '</option>'; }).join('') }) +
-          field('Carpeted rooms', 'rooms', '', { select: roomOpts, hint: 'First room ' + money(CARPET.firstRoomCents) + ', each room after that ' + money(CARPET.extraRoomCents) + '.' }) +
-          '<fieldset class="adds"><legend>Add-ons</legend>' + CARPET.addons.map(function (a) {
-            return '<label class="place__row"><input type="checkbox" name="addon" value="' + esc(a.key) + '"><span>' + esc(a.label) + '</span><span class="num">' + money(a.cents) + '</span></label>';
-          }).join('') + '</fieldset>' +
-          field('Day you would like', 'preferred_on', '', { type: 'date', hint: 'A request. The day is confirmed with you.' }) +
-          field('Anything the crew should know', 'note', '', { area: true, ph: 'Stains to look at, pets, where to park' }) +
-          '<div class="est" id="svcSum" aria-live="polite"></div>' +
-          '<p class="sheet__err" role="alert"></p>' +
-          '<button class="btn btn--block" type="submit">Send the request</button>' +
-          '<p class="fine">This is a request, not a booking, and no payment is taken here. Hughes Living arranges the visit and confirms the day with you. The estimate uses Richard&rsquo;s posted prices; the final price is confirmed at the house.</p>' +
-        '</form>'
-      : '<p class="empty">Add a house first, then come back to request a cleaning for it. <a href="#houses">Go to houses</a></p>';
+    if (which === 'move') {
+      var t = MOVE.toteTiers, trucks = MOVE.truckHourlyCents;
+      about =
+        '<img class="provider__img" src="img/services/move-tote-totes.webp" alt="Two black totes with yellow snap lids, stacked" width="581" height="671" loading="lazy">' +
+        '<h2 class="h2">' + esc(MOVE.name) + '</h2>' +
+        '<p>Reusable totes in place of cardboard boxes, and box-truck moving crews. For clearing a house out before it is staged, or for the move once it sells.</p>' +
+        priceRows(t.slice().reverse().map(function (x, k, all) {
+            var next = all[k + 1];
+            return [(next ? (x.min || 1) + ' to ' + (next.min - 1) : x.min + ' or more') + ' totes, each per week', money(x.cents)];
+          }).concat([
+            ['Smallest totes-only order', money(MOVE.toteMinimumCents)],
+            ['Totes booked with a crew, each per week', money(MOVE.toteWithMoveCents)],
+            ['16 ft truck with 2 movers, per hour', money(trucks['16ft'])],
+            ['26 ft truck with 2 movers, per hour', money(trucks['26ft'])],
+            ['Each extra mover, per hour', money(MOVE.extraMoverCents)],
+            ['Trip fee', money(MOVE.tripFeeCents)],
+            ['Shortest crew booking', MOVE.minHours + ' hours']])) +
+        '<p class="fine"><a href="' + esc(MOVE.url) + '" target="_blank" rel="noopener">Move &amp; Tote&rsquo;s own site</a> has the tote sizes, clothes bags and wardrobe boxes.</p>';
+      form = '<form class="svcform" id="mvForm" novalidate>' + houseField +
+        field('What you need', 'mode', '', { select: '<option value="totes">Totes only</option><option value="move">A moving crew, with or without totes</option>' }) +
+        '<div class="pair">' + field('Totes', 'totes', '30', { type: 'number', mode: 'numeric' }) +
+          field('For how long', 'weeks', '', { select: numOpts(1, MOVE.maxWeeks, 2, 'week') }) + '</div>' +
+        '<div id="mvCrew" hidden><div class="pair">' +
+          field('Truck', 'truck', '', { select: '<option value="16ft">16 ft, ' + money(trucks['16ft']) + '/hr</option><option value="26ft">26 ft, ' + money(trucks['26ft']) + '/hr</option>' }) +
+          field('Movers', 'movers', '', { select: numOpts(2, MOVE.maxMovers, 2, 'mover') }) + '</div>' +
+          field('Hours you expect', 'hours', '', { select: numOpts(MOVE.minHours, MOVE.maxHours, 4, 'hour'),
+            hint: 'A crew is billed by the hour, so this is your guess. The estimate moves with it.' }) + '</div>' +
+        tail('A request. The day is confirmed with you.', 'Stairs, a long carry, large or fragile pieces, where to park',
+             'The estimate uses Move &amp; Tote&rsquo;s posted rates; a move is billed for the hours it takes.') +
+        '</form>';
+    } else {
+      about =
+        '<img class="provider__img" src="img/services/richards-truck-mount.jpg" alt="The truck-mount cleaning unit in Richard&rsquo;s van" width="830" height="824" loading="lazy">' +
+        '<h2 class="h2">' + esc(CARPET.name) + '</h2>' +
+        '<p>Truck-mount steam cleaning for carpet and upholstery. Carpets get cleaned while the house is empty, before the furniture goes in.</p>' +
+        priceRows([['First room', money(CARPET.firstRoomCents)], ['Each room after that', money(CARPET.extraRoomCents)]]
+          .concat(CARPET.addons.map(function (a) { return [esc(a.label), money(a.cents)]; }))) +
+        '<p class="fine"><a href="' + esc(CARPET.url) + '" target="_blank" rel="noopener">Richard&rsquo;s own site</a> has tile, rugs and everything else he does.</p>';
+      var roomOpts = '';
+      for (var n = 0; n <= CARPET.maxRooms; n++) roomOpts += '<option value="' + n + '"' + (n === 3 ? ' selected' : '') + '>' + (n ? plural(n, 'room') : 'No rooms, add-ons only') + '</option>';
+      form = '<form class="svcform" id="svcForm" novalidate>' + houseField +
+        field('Carpeted rooms', 'rooms', '', { select: roomOpts, hint: 'First room ' + money(CARPET.firstRoomCents) + ', each room after that ' + money(CARPET.extraRoomCents) + '.' }) +
+        '<fieldset class="adds"><legend>Add-ons</legend>' + CARPET.addons.map(function (a) {
+          return '<label class="place__row"><input type="checkbox" name="addon" value="' + esc(a.key) + '"><span>' + esc(a.label) + '</span><span class="num">' + money(a.cents) + '</span></label>';
+        }).join('') + '</fieldset>' +
+        tail('A request. The day is confirmed with you.', 'Stains to look at, pets, where to park',
+             'The estimate uses Richard&rsquo;s posted prices; the final price is confirmed at the house.') +
+        '</form>';
+    }
+    if (!houses.length) form = '<p class="empty">Add a house first, then come back to request this for it. <a href="#houses">Go to houses</a></p>';
 
-    var list = D.services.length ? '<div class="reqs">' + D.services.map(svcCard).join('') + '</div>'
-      : '<p class="empty">' + (ME.staff ? 'No one has asked for a cleaning yet.' : 'You have not asked for a cleaning yet.') + '</p>';
+    var asked = D.services.length ? '<div class="reqs">' + D.services.map(svcCard).join('') + '</div>'
+      : '<p class="empty">' + (ME.staff ? 'No one has asked for a service yet.' : 'You have not asked for anything yet.') + '</p>';
+    var mine = (ME.staff ? '' : '<h2 class="h2">Your requests</h2>') + asked;
+    var pick = list.length > 1 ? '<div class="seg" role="group" aria-label="Which service">' + list.map(function (k) {
+      return '<a href="#services/' + k + '" aria-current="' + (k === which ? 'true' : 'false') + '">' + ({ carpet: 'Carpet cleaning', move: 'Moving &amp; totes' })[k] + '</a>';
+    }).join('') + '</div>' : '';
 
-    var about =
-      '<img class="provider__img" src="img/services/richards-truck-mount.jpg" alt="The truck-mount cleaning unit in Richard&rsquo;s van" width="830" height="824" loading="lazy">' +
-      '<h2 class="h2">' + esc(CARPET.name) + '</h2>' +
-      '<p>Truck-mount steam cleaning for carpet and upholstery. Carpets get cleaned while the house is empty, before the furniture goes in.</p>' +
-      '<dl class="prices"><div><dt>First room</dt><dd>' + money(CARPET.firstRoomCents) + '</dd></div>' +
-        '<div><dt>Each room after that</dt><dd>' + money(CARPET.extraRoomCents) + '</dd></div>' +
-        CARPET.addons.map(function (a) { return '<div><dt>' + esc(a.label) + '</dt><dd>' + money(a.cents) + '</dd></div>'; }).join('') + '</dl>' +
-      '<p class="fine"><a href="' + esc(CARPET.url) + '" target="_blank" rel="noopener">Richard&rsquo;s own site</a> has tile, rugs and everything else he does.</p>';
-
-    var mine = (ME.staff ? '' : '<h2 class="h2">Your requests</h2>') + list;
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Services</p><h1 class="title">' +
-        (ME.staff ? 'Cleanings customers have <em>asked for</em>' : 'Clean carpets before the furniture goes <em>in</em>') + '</h1></div></div>' +
-      (ME.staff ? mine : '') +
+        (ME.staff ? 'What customers have <em>asked for</em>' : 'Help getting the house <em>ready</em>') + '</h1>' +
+        (ME.staff ? '' : '<p class="sub">Two services you can ask for at any of your houses. Both are requests to the Hughes Living office.</p>') + '</div></div>' +
+      (ME.staff ? mine : '') + pick +
       '<div class="cols cols--svc"><div class="provider">' + about + '</div><aside>' +
-        '<h2 class="h2">' + (ME.staff ? 'Request one for a house' : 'Request a cleaning') + '</h2>' + form + '</aside></div>' +
+        '<h2 class="h2">' + (which === 'move' ? 'Request totes or a crew' : 'Request a cleaning') + '</h2>' + form + '</aside></div>' +
       (ME.staff ? '' : mine);
     svcSum();
   }
@@ -1109,7 +1189,7 @@
       }
     }
     else if (act === 'cancel-service') {
-      if (confirm('Cancel this cleaning request?')) run(API.setService(id, 'cancelled'), 'Request cancelled.').catch(function () {});
+      if (confirm('Cancel this request?')) run(API.setService(id, 'cancelled'), 'Request cancelled.').catch(function () {});
     }
     else if (act === 'send-back') {
       run(API.placeItem(id, null, null), 'Moved out of the house.').catch(function () {});
@@ -1146,8 +1226,8 @@
       run(API.saveItem(Object.assign({}, item(id), { status: el.value })), 'Marked ' + STATUS[el.value].toLowerCase() + '.').catch(function () {});
     }
     else if (act === 'req-status') run(API.setRequest(id, el.value), 'Request updated.').catch(function () {});
-    else if (act === 'svc-status') run(API.setService(id, el.value), 'Cleaning marked ' + SSTATUS[el.value].toLowerCase() + '.').catch(function () {});
-    else if (el.form && el.form.getAttribute('id') === 'svcForm') svcSum();
+    else if (act === 'svc-status') run(API.setService(id, el.value), 'Request marked ' + SSTATUS[el.value].toLowerCase() + '.').catch(function () {});
+    else if (el.form && /^(svcForm|mvForm)$/.test(el.form.getAttribute('id'))) svcSum();
     else if (el.id === 'fw') { F.where = el.value; renderFurniture(); }
     else if (el.id === 'fs') { F.status = el.value; renderFurniture(); }
     else if (el.id === 'f_status' && el.form && el.form.getAttribute('id') === 'itemForm') document.getElementById('soldBox').hidden = el.value !== 'sold';
@@ -1186,6 +1266,8 @@
         var again = document.getElementById('fq');
         again.focus(); again.setSelectionRange(again.value.length, again.value.length);
       }, 180);
+    } else if (el.id === 'f_totes') {
+      svcSum();
     } else if (el.id === 'catQ') {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(function () {
@@ -1252,6 +1334,13 @@
           'Request sent. Hughes Living will confirm the day.')
         .catch(function (x) { err.textContent = x.message; busy(false); });
     }
+    else if (fid === 'mvForm') {
+      var choice = moveChoice(form);
+      try { window.HLS.moveQuote(choice); } catch (x) { err.textContent = x.message; return; }
+      busy(true); err.textContent = '';
+      run(API.requestService(choice), 'Request sent. Hughes Living will confirm the day.')
+        .catch(function (x) { err.textContent = x.message; busy(false); });
+    }
     else if (fid === 'authForm') {
       busy(true); err.textContent = '';
       var go = f.mode === 'finish' ? API.register(f)
@@ -1281,7 +1370,7 @@
     sbadge.hidden = !sn; sbadge.textContent = sn;
 
     if (parts[0] === 'home') renderHome();
-    else if (parts[0] === 'services') renderServices();
+    else if (parts[0] === 'services') renderServices(parts[1]);
     else if (parts[0] === 'guide') renderGuide(parts[1]);
     else if (parts[0] === 'house') renderHouse(Number(parts[1]));
     else if (parts[0] === 'furniture') renderFurniture();

@@ -61,7 +61,10 @@ try {
   const services = readFileSync(join(here, '..', 'supabase', '0003_services.sql'), 'utf8');
   await db.query(services);
   await db.query(services);
-  ok(true, 'auction core + staging + accounts + services applied, each a second time');
+  const moveTote = readFileSync(join(here, '..', 'supabase', '0004_move_tote.sql'), 'utf8');
+  await db.query(moveTote);
+  await db.query(moveTote);
+  ok(true, 'auction core + staging + accounts + services + move & tote applied, each a second time');
 
   // two accounts: one staff, one ordinary bidder
   const STAFF = '11111111-1111-1111-1111-111111111111';
@@ -280,6 +283,60 @@ try {
        "and both match Richard's own price book");
   } else {
     console.log("  skip  Richard's repo is not next door, so his price book was not compared");
+  }
+
+  console.log('\n== services: Hughes Move & Tote ==');
+  await as('anon');
+  await refused('select stg_service_request($1)', [JSON.stringify({ service: 'move', house_id: dh.id, mode: 'totes', totes: 30, weeks: 2 })], 'anon cannot ask for totes');
+  await as('authenticated', BUYER);
+  const ask = async (o) => (await db.query('select stg_service_request($1) s', [JSON.stringify({ service: 'move', house_id: dh.id, ...o })])).rows[0].s;
+  const totes30 = await ask({ mode: 'totes', totes: 30, weeks: 2, estimate_cents: 1 });
+  ok(totes30.service === 'move' && totes30.estimate_cents === 30 * 275 * 2 && totes30.details.mode === 'totes' && !('estimate_cents' in totes30.details),
+     '30 totes for 2 weeks: the 20-39 tier, $165, priced by the database');
+  ok((await ask({ mode: 'totes', totes: 5, weeks: 1 })).estimate_cents === 9900, '5 totes for a week comes up to the $99 order minimum');
+  ok((await ask({ mode: 'totes', totes: 40, weeks: 2 })).estimate_cents === 40 * 225 * 2, '40 totes for 2 weeks reach the lowest tier, $180');
+  const crew = await ask({ mode: 'move', truck: '26ft', movers: 3, hours: 4, totes: 20, weeks: 2 });
+  ok(crew.estimate_cents === (12900 + 4500) * 4 + 9500 + 20 * 150 * 2 && crew.details.truck === '26ft',
+     'a 26 ft truck, 3 movers, 4 hours, 20 bundled totes: $851');
+  ok((await ask({ mode: 'move', truck: '16ft', hours: 2 })).estimate_cents === 10900 * 2 + 9500, 'a crew with no totes is allowed: 2 hours + trip fee');
+  for (const [bad, why] of [
+    [{ mode: 'totes', totes: 0, weeks: 1 }, 'a rental needs at least one tote'],
+    [{ mode: 'totes', totes: 201, weeks: 1 }, 'no more than 200 totes'],
+    [{ mode: 'totes', totes: 10, weeks: 13 }, 'no more than 12 weeks'],
+    [{ mode: 'move', truck: '40ft', hours: 3 }, 'an unknown truck is refused'],
+    [{ mode: 'move', truck: '16ft', hours: 1 }, 'the 2-hour minimum holds'],
+    [{ mode: 'move', truck: '16ft', hours: 3, movers: 5 }, 'no more than 4 movers'],
+  ]) await refused('select stg_service_request($1)', [JSON.stringify({ service: 'move', house_id: dh.id, ...bad })], why);
+  await refused('select stg_service_request($1)', [JSON.stringify({ service: 'move', house_id: listing.id, mode: 'totes', totes: 30, weeks: 1 })], "and not at someone else's house");
+  await refused('select stg_service_request($1)', [JSON.stringify({ service: 'paint', house_id: dh.id })], 'an unknown service is refused');
+  const stillCarpet = (await db.query('select stg_service_request($1) s', [JSON.stringify({ house_id: dh.id, rooms: 2 })])).rows[0].s;
+  ok(stillCarpet.service === 'carpet' && stillCarpet.estimate_cents === 9900, 'a carpet request still works through the same door');
+
+  // one rate card, three copies: Move & Tote's site, this site's config.js, and the database
+  await as(null);
+  const mv = win.HLS_CONFIG.services.move;
+  const est = async (o) => (await db.query('select stg_move_estimate($1) e', [JSON.stringify(o)])).rows[0].e.estimate_cents;
+  const tier = (n) => mv.toteTiers.find(t => n >= t.min).cents;
+  let sameMove = true;
+  for (const n of [1, 19, 20, 39, 40, 200]) sameMove = sameMove && (await est({ mode: 'totes', totes: n, weeks: 3 })) === Math.max(n * tier(n) * 3, mv.toteMinimumCents);
+  for (const truck of Object.keys(mv.truckHourlyCents)) {
+    sameMove = sameMove && (await est({ mode: 'move', truck, movers: 4, hours: 5, totes: 10, weeks: 2 }))
+      === (mv.truckHourlyCents[truck] + 2 * mv.extraMoverCents) * 5 + mv.tripFeeCents + 10 * mv.toteWithMoveCents * 2;
+  }
+  ok(sameMove, 'config.js and the database price totes and a move the same way');
+  const moveSite = join(here, '..', '..', 'hughes-move-tote', 'index.html');
+  const rates = existsSync(moveSite) && readFileSync(moveSite, 'utf8').match(/const RATES = (\{[\s\S]*?\n    \});/);
+  if (rates) {
+    const R = new Function('return ' + rates[1])();
+    const c = (d) => Math.round(d * 100);
+    ok(R.toteTiers.length === mv.toteTiers.length && R.toteTiers.every((t, k) => t.min === mv.toteTiers[k].min && c(t.rate) === mv.toteTiers[k].cents)
+       && c(R.toteWithMove) === mv.toteWithMoveCents && c(R.toteMinimum) === mv.toteMinimumCents
+       && Object.keys(R.truckHourly).length === Object.keys(mv.truckHourlyCents).length
+       && Object.keys(R.truckHourly).every(k => c(R.truckHourly[k]) === mv.truckHourlyCents[k])
+       && c(R.extraMoverHourly) === mv.extraMoverCents && c(R.tripFee) === mv.tripFeeCents && R.minimumHours === mv.minHours,
+       "and both match the RATES on Move & Tote's own site");
+  } else {
+    console.log("  skip  Move & Tote's site is not next door, so its RATES were not compared");
   }
 
   await as(null);

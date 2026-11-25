@@ -676,3 +676,15 @@ body[data-role] .step--next .step__s{ color:var(--role); }
   .kit div{ grid-template-columns:1fr; gap:.1rem; }
   .role__l{ flex-basis:100%; }
 }
+
+/* two services: the switch between them, and a second line on the dashboards */
+.seg a{ display:inline-flex; align-items:center; min-height:44px; padding:0 1.1rem; background:#fff; font-weight:600; font-size:.88rem; color:var(--ink); text-decoration:none; }
+.seg a + a{ border-left:1px solid var(--ink); }
+.seg a[aria-current=true]{ background:var(--ink); color:#fff; }
+.svc + .svc, .svc--2{ margin-top:1rem; }
+.tip + .svc--2{ margin-top:1.4rem; }
+.provider__img{ object-position:center 35%; }
+@media (max-width: 520px){ .seg a{ flex:1; justify-content:center; padding:0 .4rem; } }
+.provider__img[src*="move-tote"]{ aspect-ratio:1; max-width:24rem; object-position:center; }
+.req__reach .linkbtn{ min-height:44px; display:inline-flex; align-items:center; }
+.reqs + .seg, .empty + .seg{ margin-top:1.6rem; }

@@ -28,6 +28,10 @@
      requestService({ house_id, rooms, addons, preferred_on, note })
                                ask for carpet cleaning at one of my houses. The
                                estimate is priced by the data layer, not the page.
+     requestService({ service: 'move', house_id, mode, totes, weeks, truck,
+                      movers, hours, preferred_on, note })
+                               ask Hughes Move & Tote for totes ('totes') or a
+                               crew with totes ('move'). Priced the same way.
      setService(id, status)    staff: any status. A customer: cancel their own
                                request while it is still new.
      office() also returns services: the caller's own, or all of them for staff. */
@@ -60,6 +64,41 @@
     });
     return { rooms: rooms, addons: Object.keys(seen), lines: lines,
              total_cents: lines.reduce(function (t, l) { return t + l.cents; }, 0) };
+  }
+
+  /* Hughes Move & Tote: totes on their own (tiered by count, with an order
+     minimum), or a truck and crew by the hour plus a trip fee, with totes at
+     the bundled rate. Same arithmetic as the calculators on its own site. */
+  function moveQuote(p) {
+    var book = (CFG.services || {}).move;
+    if (!book) throw fail('Moving is not set up.');
+    var whole = function (v, lo, hi, what) {
+      v = Math.trunc(Number(v));
+      if (!(v >= lo && v <= hi)) throw fail(what + ' must be between ' + lo + ' and ' + hi + '.');
+      return v;
+    };
+    var usd = function (c) { return '$' + (c / 100).toFixed(2).replace(/\.00$/, ''); };
+    var mode = p.mode === 'move' ? 'move' : 'totes';
+    var totes = whole(p.totes || 0, mode === 'move' ? 0 : 1, book.maxTotes, 'Totes');
+    var weeks = whole(p.weeks || 1, 1, book.maxWeeks, 'Weeks');
+    var d = { mode: mode, totes: totes, weeks: weeks }, lines = [];
+    var forWeeks = ' for ' + weeks + (weeks === 1 ? ' week' : ' weeks');
+    if (mode === 'totes') {
+      var rate = book.toteTiers.filter(function (t) { return totes >= t.min; })[0].cents;
+      var raw = totes * rate * weeks;
+      lines.push({ label: totes + (totes === 1 ? ' tote' : ' totes') + forWeeks + ' at ' + usd(rate), cents: raw });
+      if (raw < book.toteMinimumCents) lines.push({ label: 'Up to the ' + usd(book.toteMinimumCents) + ' order minimum', cents: book.toteMinimumCents - raw });
+    } else {
+      if (!book.truckHourlyCents[p.truck]) throw fail('Choose a 16 ft or a 26 ft truck.');
+      d.truck = p.truck;
+      d.movers = whole(p.movers || 2, 2, book.maxMovers, 'Movers');
+      d.hours = whole(p.hours || book.minHours, book.minHours, book.maxHours, 'Hours');
+      var hourly = book.truckHourlyCents[d.truck] + (d.movers - 2) * book.extraMoverCents;
+      lines.push({ label: d.hours + ' hours, ' + d.truck.replace('ft', ' ft') + ' truck and ' + d.movers + ' movers at ' + usd(hourly) + '/hr', cents: hourly * d.hours });
+      lines.push({ label: 'Trip fee', cents: book.tripFeeCents });
+      if (totes) lines.push({ label: totes + (totes === 1 ? ' tote' : ' totes') + forWeeks + ' at ' + usd(book.toteWithMoveCents), cents: totes * book.toteWithMoveCents * weeks });
+    }
+    return { details: d, lines: lines, total_cents: lines.reduce(function (t, l) { return t + l.cents; }, 0) };
   }
 
   /* ================================================================ demo */
@@ -373,10 +412,11 @@
         var s = load(), a = need(s), staff = a.kind === 'owner';
         var h = s.houses.filter(function (x) { return x.id === int(p.house_id); })[0];
         if (!h || (!staff && h.account_id !== a.id)) return no('That is not one of your houses.');
-        var q = carpetQuote(p.rooms, p.addons);
+        var move = p.service === 'move', q = move ? moveQuote(p) : carpetQuote(p.rooms, p.addons);
         if (!q.lines.length) return no('Choose at least one room or add-on.');
-        var v = { id: s.seq.service++, house_id: h.id, account_id: staff ? h.account_id : a.id, service: 'carpet',
-                  rooms: q.rooms, addons: q.addons, estimate_cents: q.total_cents, preferred_on: txt(p.preferred_on),
+        var v = { id: s.seq.service++, house_id: h.id, account_id: staff ? h.account_id : a.id, service: move ? 'move' : 'carpet',
+                  rooms: move ? 0 : q.rooms, addons: move ? [] : q.addons, details: move ? q.details : null,
+                  estimate_cents: q.total_cents, preferred_on: txt(p.preferred_on),
                   note: txt(p.note), status: 'new', created_at: new Date().toISOString() };
         s.services.push(v); save(s); return ok(v);
       },
@@ -508,7 +548,7 @@
       var m = (error && error.message) || 'Something went wrong.';
       if (/not staff|no staging account|permission denied/i.test(m)) return fail('This account cannot do that.');
       if (/Could not find the function|PGRST202|schema cache/i.test(m)) {
-        return fail('The staging tables are not installed in Supabase yet. Run supabase/0001_staging.sql, 0002_accounts.sql and 0003_services.sql first.');
+        return fail('Part of the staging database is not installed in Supabase yet. Run supabase/install-all.sql (it is safe to run again).');
       }
       if (/JWT|session/i.test(m)) return fail('Your sign-in has expired. Sign in again.');
       return fail(m);
@@ -612,6 +652,7 @@
   /* ---------- small things every page needs ---------- */
   global.HLS = {
     carpetQuote: carpetQuote,
+    moveQuote: moveQuote,
     esc: function (s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];

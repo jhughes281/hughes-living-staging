@@ -1014,9 +1014,39 @@
   }
 
   /* ---------- signing in ---------- */
+  /* The eye beside a password box: show what was typed, or hide it again. */
+  var EYE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="eye__off" d="M4 4l16 16"/></svg>';
+  function addEye(input) {
+    var wrap = document.createElement('div');
+    wrap.className = 'pw';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'eye'; b.innerHTML = EYE;
+    b.setAttribute('data-act', 'eye'); b.setAttribute('aria-pressed', 'false'); b.setAttribute('aria-label', 'Show password');
+    wrap.appendChild(b);
+  }
+
   function openAuth(kind, mode) {
-    var up = mode === 'up', fin = mode === 'finish';
-    var title = fin ? 'Finish your account' : up ? 'Create an account' : 'Sign in';
+    var up = mode === 'up', fin = mode === 'finish', forgot = mode === 'forgot', newpw = mode === 'newpw';
+    var title = fin ? 'Finish your account' : up ? 'Create an account' : forgot ? 'Reset your password' : newpw ? 'Choose a new password' : 'Sign in';
+    if (forgot || newpw) {
+      openSheet('<form class="sheet__in" id="authForm" novalidate>' + sheetTop(KIND[kind] || 'Your account', title) +
+        '<input type="hidden" name="kind" value="' + esc(kind) + '"><input type="hidden" name="mode" value="' + mode + '">' +
+        (forgot
+          ? '<p>Enter the email you signed up with. We will send a link that lets you choose a new password.</p>' +
+            field('Email', 'email', '', { type: 'email', req: true })
+          : '<p>You came in from a reset link. Choose a password and you are signed in.</p>' +
+            field('New password', 'password', '', { type: 'password', req: true, hint: 'At least 8 characters.' })) +
+        '<p class="sheet__err" role="alert"></p>' +
+        '<div class="sheet__acts"><button class="btn" type="submit">' + (forgot ? 'Email me a reset link' : 'Save my new password') + '</button>' +
+        (forgot ? '<button class="linkbtn" type="button" data-act="door" data-kind="' + esc(kind) + '" data-mode="in">Back to sign in</button>' : '') + '</div></form>');
+      var np = document.getElementById('f_password'), fe = document.getElementById('f_email');
+      if (np) { np.setAttribute('autocomplete', 'new-password'); addEye(np); }
+      if (fe) fe.setAttribute('autocomplete', 'email');
+      return;
+    }
     openSheet('<form class="sheet__in" id="authForm" novalidate>' + sheetTop(KIND[kind], title) +
       '<input type="hidden" name="kind" value="' + esc(kind) + '"><input type="hidden" name="mode" value="' + esc(mode) + '">' +
       (up || fin ? field('Your name', 'name', '', { req: true }) +
@@ -1028,10 +1058,11 @@
       '<div class="sheet__acts"><button class="btn" type="submit">' + title + '</button>' +
       (fin || kind === 'owner' ? '' : '<button class="linkbtn" type="button" data-act="door" data-kind="' + kind + '" data-mode="' + (up ? 'in' : 'up') + '">' +
         (up ? 'I already have an account' : 'Create an account instead') + '</button>') + '</div>' +
+      (!up && !fin ? '<p class="forgot"><button class="linkbtn" type="button" data-act="door" data-kind="' + kind + '" data-mode="forgot">Forgot your password?</button></p>' : '') +
       (API.name === 'demo' && !fin ? '<p class="fine">Sample mode: this account is kept in this browser only, so use a throwaway password.</p>' : '') +
       '</form>');
     var pw = document.getElementById('f_password');
-    if (pw) pw.setAttribute('autocomplete', up ? 'new-password' : 'current-password');
+    if (pw) { pw.setAttribute('autocomplete', up ? 'new-password' : 'current-password'); addEye(pw); }
     var em = document.getElementById('f_email');
     if (em) em.setAttribute('autocomplete', 'email');
   }
@@ -1176,6 +1207,12 @@
     var act = el.getAttribute('data-act'), id = Number(el.getAttribute('data-id'));
 
     if (act === 'close') sheet.close();
+    else if (act === 'eye') {
+      var box = el.parentNode.querySelector('input'), show = box.type === 'password';
+      box.type = show ? 'text' : 'password';
+      el.setAttribute('aria-pressed', String(show));
+      el.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    }
     else if (act === 'door') openAuth(el.getAttribute('data-kind'), el.getAttribute('data-mode'));
     else if (act === 'sample') API.sampleSignIn(el.getAttribute('data-kind')).then(boot, function (x) { toast(x.message, true); });
     else if (act === 'new-house') openHouse();
@@ -1348,6 +1385,7 @@
       busy(true); err.textContent = '';
       run(API.requestService({ house_id: Number(f.house_id), rooms: Number(f.rooms), addons: adds, preferred_on: f.preferred_on, note: f.note }),
           'Request sent. Hughes Living will confirm the day.')
+        .then(function () { svcAlert('Carpet cleaning', Number(f.house_id)); })
         .catch(function (x) { err.textContent = x.message; busy(false); });
     }
     else if (fid === 'mvForm') {
@@ -1355,14 +1393,35 @@
       try { window.HLS.moveQuote(choice); } catch (x) { err.textContent = x.message; return; }
       busy(true); err.textContent = '';
       run(API.requestService(choice), 'Request sent. Hughes Living will confirm the day.')
+        .then(function () { svcAlert('Move & Tote', choice.house_id); })
         .catch(function (x) { err.textContent = x.message; busy(false); });
     }
     else if (fid === 'authForm') {
       busy(true); err.textContent = '';
+      if (f.mode === 'forgot') {
+        var to = (f.email || '').trim();
+        if (!/^\S+@\S+\.\S+$/.test(to)) { err.textContent = 'Enter a valid email address.'; busy(false); return; }
+        API.requestReset(to).then(function () {
+          form.innerHTML = sheetTop(KIND[f.kind] || 'Your account', 'Check your email') +
+            '<p>If there is an account for <strong>' + esc(to) + '</strong>, a reset link is on its way. Open it on this device and you will be asked for a new password.</p>' +
+            '<p class="fine">The link works once. If nothing arrives in a few minutes, look in spam, then ask again.</p>' +
+            '<div class="sheet__acts"><button class="btn" type="button" data-act="close">Done</button></div>';
+        }).catch(function (x) { err.textContent = x.message || 'That did not send.'; busy(false); });
+        return;
+      }
+      if (f.mode === 'newpw') {
+        API.setPassword(f.password).then(function () { sheet.close(); toast('Password changed. You are signed in.'); })
+          .catch(function (x) { err.textContent = x.message || 'That did not save.'; busy(false); });
+        return;
+      }
+      var fresh = f.mode === 'up' || f.mode === 'finish';
       var go = f.mode === 'finish' ? API.register(f)
         : f.mode === 'up' ? API.signUp(f)
         : API.signIn((f.email || '').trim(), f.password);
-      go.then(function () { sheet.close(); return boot(); })
+      go.then(function () {
+        if (fresh) window.HLS.alertOffice('New customer account', ['A new ' + (KIND[f.kind] || 'customer').toLowerCase() + ' account was created.', 'Their details are under Accounts.']);
+        sheet.close(); return boot();
+      })
         .catch(function (x) { err.textContent = x.message || 'Could not sign in.'; })
         .then(function () { busy(false); });
     }
@@ -1437,8 +1496,32 @@
       '<button class="btn" type="button" data-act="door" data-kind="realtor" data-mode="finish">Realtor</button></div></div>';
   }
 
+  /* A customer asked for a service: nudge the office. Staff asking on a
+     customer's behalf already know. */
+  function svcAlert(what, houseId) {
+    var h = house(houseId);
+    if (!ME.staff) window.HLS.alertOffice('New service request', [what + ' was requested by a ' + (KIND[ME.kind] || 'customer').toLowerCase() + '.',
+      h ? 'House: ' + h.address : '', 'The details are under Services.']);
+  }
+
+  var arrived = null;     // read once: did this visit start from an emailed link?
   function boot() {
-    return API.session().then(function (s) {
+    arrived = arrived || API.arrival().catch(function () { return null; });
+    return arrived.then(function (came) {
+      arrived = Promise.resolve(null);               // only the first boot acts on it
+      return API.session().then(function (s) { return { s: s, came: came }; });
+    }).then(function (r) {
+      var out = bootWith(r.s);
+      if (r.came && r.came.error) toast(r.came.error, true);
+      if (r.came && r.came.recovery && r.s.signedIn) Promise.resolve(out).then(function () { openAuth(r.s.kind || '', 'newpw'); });
+      return out;
+    }).catch(function (e) {
+      view.innerHTML = '<div class="door"><p class="eyebrow">Hughes Living Staging</p><h1 class="title">This page could not <em>open</em></h1><p class="sheet__err">' +
+        esc(e.message || 'Something went wrong.') + '</p></div>';
+    });
+  }
+  function bootWith(s0) {
+    return Promise.resolve(s0).then(function (s) {
       ME = s;
       var who = document.getElementById('who');
       document.getElementById('tabs').hidden = !s.kind;
@@ -1476,6 +1559,8 @@
   document.addEventListener('submit', onSubmit);
   sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
   window.addEventListener('hashchange', function () {
+    // an emailed link opened in a tab that already had this page: start over so it is read
+    if (/[#&](access_token|error)=/.test(location.hash)) { location.reload(); return; }
     var inGuide = /^#guide\//.test(location.hash);
     if (ME.kind) route();
     if (!inGuide) window.scrollTo(0, 0);          // a guide link scrolls to its own section

@@ -10,6 +10,10 @@
                                   (staging my own house), 'designer', 'realtor', or null
                                   for a signed-in user with no account yet
      signIn(email, password)   signOut()
+     requestReset(email)       email a link that sets a new password
+     arrival()                 call once on load: signs in from an emailed link.
+                               -> null | { recovery: true|false } | { error }
+     setPassword(password)     change my own password (after a reset link)
      signUp({ kind, name, studio, phone, email, password })
      register({ kind, name, studio, phone })   finish an account after sign-in
      sampleSignIn(kind)        demo only: step into a sample account
@@ -268,6 +272,13 @@
         });
       },
       register: function () { return no('Nothing to finish in the sample.'); },
+      requestReset: function () { return no('Sample mode cannot send email. Create another sample account instead; it only lives in this browser.'); },
+      arrival: function () { return ok(null); },
+      setPassword: function (password) {
+        var s = load(), a = need(s);
+        if ((password || '').length < 8) return no('Use a password of at least 8 characters.');
+        return digest(a.email, password).then(function (h) { a.pass = h; save(s); return true; });
+      },
       sampleSignIn: function (kind) {
         var a = load().accounts.filter(function (x) { return x.kind === kind && !x.pass; })[0];
         if (!a) return no('No sample account of that kind.');
@@ -591,6 +602,49 @@
       register: function (p) {
         return rpc('stg_register', { p_kind: p.kind, p_name: p.name, p_studio: p.studio || null, p_phone: p.phone || null });
       },
+      /* The link in the email must come back to this exact page. It only does
+         if this address is on the project's list of allowed redirect URLs
+         (Supabase > Authentication > URL Configuration); otherwise Supabase
+         sends people to the project's Site URL, which is the auction site. */
+      requestReset: function (email) {
+        return client().then(function (c) {
+          return c.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+        }).then(function (r) {
+          if (r.error) {
+            throw fail(/rate limit/i.test(r.error.message) ? 'Too many emails have been sent this hour. Try again later.' : r.error.message);
+          }
+          return true;
+        });
+      },
+      /* An emailed link (password reset, or confirming a new address) lands
+         here with the session in the address bar after the #. The pages use
+         the # for their own tabs, so it is read once, here, and wiped. */
+      arrival: function () {
+        var q = new URLSearchParams(location.hash.replace(/^#/, ''));
+        if (!q.get('access_token') && !q.get('error')) return Promise.resolve(null);
+        history.replaceState(null, '', location.pathname + location.search);
+        if (q.get('error')) {
+          return Promise.resolve({ error: /expired|invalid/i.test(q.get('error_description') || q.get('error_code') || '')
+            ? 'That link has expired or was already used. Ask for a new one.' : (q.get('error_description') || 'That link did not work.') });
+        }
+        return client().then(function (c) {
+          return c.auth.setSession({ access_token: q.get('access_token'), refresh_token: q.get('refresh_token') });
+        }).then(function (r) {
+          if (r.error) return { error: 'That link has expired or was already used. Ask for a new one.' };
+          return { recovery: q.get('type') === 'recovery' };
+        });
+      },
+      setPassword: function (password) {
+        if ((password || '').length < 8) return Promise.reject(fail('Use a password of at least 8 characters.'));
+        return client().then(function (c) { return c.auth.updateUser({ password: password }); }).then(function (r) {
+          if (r.error) {
+            var m = r.error.message || '';
+            throw fail(/same|different from the old/i.test(m) ? 'That is the password you already have.'
+              : /session|JWT/i.test(m) ? 'That reset link has expired. Ask for a new one.' : m);
+          }
+          return true;
+        });
+      },
       sampleSignIn: function () { return Promise.reject(fail('Sample accounts exist only in sample mode.')); },
       signOut: function () { staff = false; return client().then(function (c) { return c.auth.signOut(); }); },
 
@@ -650,7 +704,24 @@
   global.HLS_API = CFG.backend === 'demo' ? demoBackend() : supabaseBackend();
 
   /* ---------- small things every page needs ---------- */
+  /* Tell the office something came in. Never throws and never blocks: the
+     order is already saved by the time this runs, and the email is only a
+     nudge to go and look. No buyer or customer contact details go in it. */
+  function alertOffice(subject, lines) {
+    var key = (CFG.alerts || {}).web3formsKey;
+    if (!key || CFG.backend !== 'supabase' || typeof fetch !== 'function') return Promise.resolve(false);
+    var office = (CFG.publicBase || location.href.replace(/[^/]*([?#].*)?$/, ''));
+    var body = new FormData();
+    body.append('access_key', key);
+    body.append('subject', subject + ' - Hughes Living Staging');
+    body.append('from_name', 'Hughes Living Staging');
+    body.append('message', lines.filter(Boolean).join('\n') + '\n\nOpen the office: ' + office);
+    return fetch('https://api.web3forms.com/submit', { method: 'POST', body: body })
+      .then(function (r) { return r.ok; }, function () { return false; });
+  }
+
   global.HLS = {
+    alertOffice: alertOffice,
     carpetQuote: carpetQuote,
     moveQuote: moveQuote,
     esc: function (s) {

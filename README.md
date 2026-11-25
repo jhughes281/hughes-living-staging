@@ -63,6 +63,27 @@ Hughes Living's own houses earn none. Nothing is stored: the page works it out
 from the sold rows, and shows it on the house page, the dashboards, Accounts
 and Money (where profit is net of it). Hughes Living bills the fee after credit.
 
+## Passwords and office alerts
+
+**Show password.** Every password box has an eye button that shows or hides
+what was typed.
+
+**Forgot your password.** The sign-in sheet emails a reset link
+(`requestReset`); the link comes back to `index.html` with the session after
+the `#`, which `arrival()` reads once and wipes, and the page asks for a new
+password. For the link to land here, add
+`https://jhughes281.github.io/hughes-living-staging/**` under Supabase >
+Authentication > URL Configuration > Redirect URLs; otherwise Supabase sends
+people to the project's Site URL (the auction site). The built-in Supabase
+mailer only sends a few emails an hour; real use needs custom SMTP.
+
+**Office alerts.** A buyer's order or question, a customer's service request
+and a new customer account each send one email through Web3Forms
+(`alerts.web3formsKey` in `config.js`, the Hughes Strategic Group key). The
+email names what arrived and the house, never a buyer's or customer's contact
+details, and links to the office. It is sent from the visitor's browser after
+the row is saved, so a blocked request loses the email, not the order.
+
 ## Which login is this, and the Guide
 
 Each login has its own colour (green homeowner, clay designer, slate realtor,

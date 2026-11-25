@@ -695,3 +695,13 @@ body[data-role] .step--next .step__s{ color:var(--role); }
 
 .role__who{ font-weight:700; margin-right:.7rem; }
 @media (max-width: 520px){ .role__who{ display:block; margin:0; } }
+
+/* ---------- password box: the eye, and the way back in ---------- */
+.pw{ position:relative; }
+.pw input{ padding-right:3.2rem; }
+.eye{ position:absolute; top:0; right:0; width:48px; height:44px; display:grid; place-items:center; background:none; border:0; border-left:1px solid #B9B2A6; color:var(--ink-3); cursor:pointer; }
+.eye:hover{ color:var(--ink); }
+.eye[aria-pressed=true]{ color:var(--ink); }
+.eye[aria-pressed=false] .eye__off{ display:none; }   /* the slash shows while the password is visible */
+.forgot{ margin:1rem 0 0; }
+.forgot .linkbtn{ min-height:44px; font-size:.9rem; }

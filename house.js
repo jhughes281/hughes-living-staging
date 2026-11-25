@@ -141,6 +141,12 @@
     btn.disabled = true; err.textContent = '';
     var kind = sheet._kind;
     API.sendRequest(code, sheet._tag, name, phone, email, f.note.value.trim(), kind).then(function () {
+      var where = (document.querySelector('.hero__addr') || {}).textContent || 'house ' + code;
+      window.HLS.alertOffice(kind === 'question' ? 'A buyer has a question' : 'New furniture order', [
+        kind === 'look' ? 'A buyer wants the whole look.' : kind === 'piece' ? 'A buyer wants piece No. ' + sheet._tag + '.'
+          : 'A buyer asked a question' + (sheet._tag ? ' about piece No. ' + sheet._tag + '.' : '.'),
+        'House: ' + where.trim(),
+        'Their name and how to reach them are in Requests.']);
       sheet.innerHTML = '<div class="sheet__in thanks"><span class="eyebrow">Sent</span><h2 id="sheetTitle">Thank you, ' + esc(name.split(' ')[0]) + '.</h2>' +
         '<p>' + (kind === 'look' ? 'Your order for the look is in.' : kind === 'piece' ? 'Your order is in.' : 'We have your question.') +
         ' We will be in touch at ' + esc(phone || email) + (kind === 'question' ? '.' : ' to confirm it and take payment.') + '</p>' +

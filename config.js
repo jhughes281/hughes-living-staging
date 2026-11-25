@@ -38,6 +38,17 @@
     contactPhone: '',
     contactEmail: '',
 
+    // Email to the office when something comes in: a buyer's order or question,
+    // a service request, a new customer account. Sent from the visitor's own
+    // browser through Web3Forms, to whichever inbox the key is registered to
+    // (this is the Hughes Strategic Group key, so jayhughes@hughesstrategic.net).
+    // The key is public by design. The email is a nudge, not the record: it
+    // carries no buyer name, phone or email, only what arrived and a link to
+    // the office. Empty key = no alerts. Never sent in sample mode.
+    alerts: {
+      web3formsKey: '22f622d7-8ba9-4616-96f8-4b546285cc65'
+    },
+
     // Sales credit. When a piece sells out of a house a customer account is
     // staging (homeowner, designer or realtor), this percent of the sale price
     // comes off that house's staging fee. It is a credit on Hughes Living's own

@@ -38,6 +38,17 @@
     contactPhone: '',
     contactEmail: '',
 
+    // The staging agreement (terms.html). Every customer account accepts it at
+    // sign-up; the database records who, which version and when. CHANGE THE
+    // VERSION whenever the wording changes: every account is then asked to
+    // accept again before it can continue. `draft: true` shows a notice on the
+    // agreement that an attorney has not reviewed it yet; set it to false (and
+    // give the version a new date) once one has.
+    terms: {
+      version: '2026-11-25-draft',
+      draft: true
+    },
+
     // Email to the office when something comes in: a buyer's order or question,
     // a service request, a new customer account. Sent from the visitor's own
     // browser through Web3Forms, to whichever inbox the key is registered to

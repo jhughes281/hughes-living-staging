@@ -85,6 +85,23 @@ email names what arrived and the house, never a buyer's or customer's contact
 details, and links to the office. It is sent from the visitor's browser after
 the row is saved, so a blocked request loses the email, not the order.
 
+## The staging agreement
+
+`terms.html` is the agreement; `terms.version` in `config.js` names it. A
+customer must tick "I have read and agree" to create an account, and the
+database records who accepted, which version and when (`stg_agreements` keeps
+every acceptance; `supabase/0006_agreement.sql`). Until an account has accepted,
+every customer function refuses it. Change the wording, change the version: the
+next time each customer signs in they see the agreement and nothing else until
+they accept the new one. The office Accounts tab shows what each account
+accepted. Staff accept nothing.
+
+**The wording is a draft and has not been reviewed by an attorney**
+(`terms.draft: true` shows that notice on the page). It commits Hughes Living
+to things only Jay can decide: the customer pays repair cost or tag price for
+damage, the credit reverses on a refund, liability is capped at the staging
+fee, Texas law. Have it reviewed, then set `draft: false` and a new version.
+
 ## QR page opens, and payment links
 
 **Opens.** The buyer page calls `stg_scan` once per browser session, which adds

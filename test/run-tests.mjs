@@ -64,6 +64,9 @@ try {
   const moveTote = readFileSync(join(here, '..', 'supabase', '0004_move_tote.sql'), 'utf8');
   await db.query(moveTote);
   await db.query(moveTote);
+  const agreement = readFileSync(join(here, '..', 'supabase', '0006_agreement.sql'), 'utf8');
+  await db.query(agreement);
+  await db.query(agreement);
   const scans = readFileSync(join(here, '..', 'supabase', '0005_scans_payments.sql'), 'utf8');
   await db.query(scans);
   await db.query(scans);
@@ -176,6 +179,24 @@ try {
   const des = (await db.query(`select stg_register('designer','Dee Designer','Dee Interiors','555-0122') a`)).rows[0].a;
   ok(des.kind === 'designer' && des.email === 'buyer@example.com', 'an interior designer account is created');
   ok((await db.query(`select stg_register('self','Dee D',null,null) a`)).rows[0].a.kind === 'designer', 'the kind of account cannot be switched afterwards');
+
+  // the staging agreement comes before everything else
+  ok(des.agreed_version === null, 'a new account has accepted nothing yet');
+  await refused('select stg_portal()', [], 'and cannot open its houses until it accepts the agreement');
+  await refused('select stg_portal_save_house($1)', [JSON.stringify({ address: '1 Too Soon St' })], 'or add a house');
+  await refused(`select stg_accept_terms('  ')`, [], 'accepting needs a version');
+  let accepted = (await db.query(`select stg_accept_terms('2026-11-25-draft') a`)).rows[0].a;
+  ok(accepted.agreed_version === '2026-11-25-draft' && accepted.agreed_at, 'accepting records the version and the time');
+  accepted = (await db.query(`select stg_accept_terms('2027-01-01') a`)).rows[0].a;
+  await as(null);
+  const history = (await db.query('select version from stg_agreements where account_id = $1 order by id', [BUYER])).rows.map(r => r.version);
+  ok(accepted.agreed_version === '2027-01-01' && history.join() === '2026-11-25-draft,2027-01-01', 'a later version is recorded beside the earlier one, not over it');
+  await as('anon');
+  await refused(`select stg_accept_terms('x')`, [], 'nobody signed out can accept');
+  await refused('select * from stg_agreements', [], 'or read who accepted');
+  await as('authenticated', STAFF);
+  await refused(`select stg_accept_terms('x')`, [], 'staff are not customers and accept nothing');
+  await as('authenticated', BUYER);
   await refused('select stg_office()', [], 'a designer cannot open the staff office');
   await refused(`select stg_save_item('{"title":"x"}')`, [], 'a designer cannot add or edit furniture');
 
@@ -207,6 +228,7 @@ try {
   await as('authenticated', SELF);
   const me = (await db.query(`select stg_register('self','Sam Seller',null,null) a`)).rows[0].a;
   ok(me.kind === 'self', 'a staging-it-myself account is created');
+  await db.query(`select stg_accept_terms('2026-11-25-draft')`);
   portal = (await db.query('select stg_portal() p')).rows[0].p;
   ok(portal.houses.length === 0 && !portal.items.some(x => x.id === spare.id), "a second customer sees none of the first one's houses or pieces");
   await refused('select stg_place($1,null,null)', [spare.id], "and cannot move the first customer's piece");
@@ -217,6 +239,7 @@ try {
   await as('authenticated', AGENT);
   const agent = (await db.query(`select stg_register('realtor','Rae Realtor','Rae Realty','555-0177') a`)).rows[0].a;
   ok(agent.kind === 'realtor' && agent.studio === 'Rae Realty', 'a realtor account is created, with its brokerage');
+  await db.query(`select stg_accept_terms('2026-11-25-draft')`);
   const listing = (await db.query('select stg_portal_save_house($1) h', [JSON.stringify({ address: '9 Listing Ln', client_name: 'The Seller' })])).rows[0].h;
   portal = (await db.query('select stg_portal() p')).rows[0].p;
   ok(portal.houses.length === 1 && portal.houses[0].id === listing.id, 'the realtor sees only their own listing');

@@ -399,7 +399,7 @@
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Accounts</p><h1 class="title">Who stages with your <em>furniture</em></h1></div></div>' +
       (D.accounts.length ? '<div class="tablewrap"><table class="grid"><thead><tr><th>Name</th><th>Kind</th><th>Reach them</th>' +
-        '<th class="num">Houses</th><th class="num">Pieces out</th><th class="num">Credit earned</th><th>Since</th></tr></thead><tbody>' +
+        '<th class="num">Houses</th><th class="num">Pieces out</th><th class="num">Credit earned</th><th>Agreement</th><th>Since</th></tr></thead><tbody>' +
         D.accounts.map(function (a) {
           var hs = D.houses.filter(function (h) { return String(h.account_id) === String(a.id); });
           var out = hs.reduce(function (t, h) { return t + inHouse(h.id).filter(function (i) { return i.status !== 'sold'; }).length; }, 0);
@@ -407,7 +407,9 @@
             '<td>' + chip(a.kind === 'self' ? 'available' : 'hold', KIND[a.kind]) + '</td>' +
             '<td>' + (a.email ? '<a href="mailto:' + esc(a.email) + '">' + esc(a.email) + '</a>' : '') + (a.phone ? '<small>' + esc(a.phone) + '</small>' : '') + '</td>' +
             '<td class="num">' + hs.length + '</td><td class="num">' + out + '</td>' +
-            '<td class="num">' + money(hs.reduce(function (t, h) { return t + stats(h).credit; }, 0), '$0') + '</td><td>' + fmtDate(a.created_at) + '</td></tr>';
+            '<td class="num">' + money(hs.reduce(function (t, h) { return t + stats(h).credit; }, 0), '$0') + '</td><td>' + (a.agreed_version ? 'Accepted ' + fmtDate(a.agreed_at) + '<small>' + esc(a.agreed_version) +
+              (TERMS.version && a.agreed_version !== TERMS.version ? ', an older version' : '') + '</small>' : '<span class="is-flag">Not accepted</span>') +
+            '</td><td>' + fmtDate(a.created_at) + '</td></tr>';
         }).join('') + '</tbody></table></div>'
         : '<p class="empty">No customer accounts yet. Homeowners, interior designers and realtors create their own from the sign-in page.</p>') +
       '<p class="fine">To hand a house to an account, open the house, choose Edit, and set &ldquo;Staged by&rdquo;.</p>';
@@ -1060,6 +1062,35 @@
     wrap.appendChild(b);
   }
 
+  /* The staging agreement: a box to tick, and a link to read it first. */
+  var TERMS = CFG.terms || {};
+  function agreeBox() {
+    if (!TERMS.version) return '';
+    return '<label class="agree"><input type="checkbox" name="agree" id="f_agree"><span>I have read and agree to the ' +
+      '<a href="terms.html" target="_blank" rel="noopener">Staging Agreement</a>' + (TERMS.draft ? ' (draft)' : '') + '.</span></label>';
+  }
+  /* A signed-in customer who has not accepted the current version sees this
+     and nothing else: a first sign-in from before the agreement existed, or a
+     new version since they last accepted. */
+  function agreeView() {
+    var again = !!ME.agreed;
+    view.innerHTML = '<div class="door door--agree"><p class="eyebrow">Staging Agreement</p>' +
+      '<h1 class="title">' + (again ? 'The agreement has <em>changed</em>' : 'One thing before you <em>start</em>') + '</h1>' +
+      '<p class="sub">' + (again ? 'You accepted an earlier version' + (ME.agreedAt ? ' on ' + fmtDate(ME.agreedAt) : '') + '. Please read the current one and accept it to carry on.'
+        : 'Staging with Hughes Living furniture comes with a short agreement. Please read it and accept it to carry on.') + '</p>' +
+      '<ul class="agree__pts">' +
+        '<li>The furniture belongs to Hughes Living until a buyer has paid for it.</li>' +
+        '<li>You look after it while it is in the house, and pay for loss or damage beyond ordinary wear.</li>' +
+        '<li>Hughes Living makes every sale, takes the payment and handles the sales tax.</li>' +
+        (CREDIT ? '<li>' + CREDIT + '% of each sale from your house comes off that house&rsquo;s staging fee, as a credit.</li>' : '') +
+      '</ul>' +
+      '<p><a class="btn btn--ghost" href="terms.html" target="_blank" rel="noopener">Read the full agreement</a></p>' +
+      '<form id="agreeForm" novalidate>' + agreeBox() +
+        '<p class="sheet__err" role="alert"></p>' +
+        '<button class="btn" type="submit">Accept and continue</button></form>' +
+      '<p class="fine">Version ' + esc(TERMS.version) + '. Your account records the version you accept and when.</p></div>';
+  }
+
   function openAuth(kind, mode) {
     var up = mode === 'up', fin = mode === 'finish', forgot = mode === 'forgot', newpw = mode === 'newpw';
     var title = fin ? 'Finish your account' : up ? 'Create an account' : forgot ? 'Reset your password' : newpw ? 'Choose a new password' : 'Sign in';
@@ -1086,6 +1117,7 @@
         field('Phone', 'phone', '', { type: 'tel' }) : '') +
       (fin ? '' : field('Email', 'email', '', { type: 'email', req: true }) +
         field('Password', 'password', '', { type: 'password', req: true, hint: up ? 'At least 8 characters.' : '' })) +
+      (up || fin ? agreeBox() : '') +
       '<p class="sheet__err" role="alert"></p>' +
       '<div class="sheet__acts"><button class="btn" type="submit">' + title + '</button>' +
       (fin || kind === 'owner' ? '' : '<button class="linkbtn" type="button" data-act="door" data-kind="' + kind + '" data-mode="' + (up ? 'in' : 'up') + '">' +
@@ -1440,6 +1472,12 @@
         .then(function () { svcAlert('Move & Tote', choice.house_id); })
         .catch(function (x) { err.textContent = x.message; busy(false); });
     }
+    else if (fid === 'agreeForm') {
+      if (!form.querySelector('[name=agree]').checked) { err.textContent = 'Tick the box to accept the agreement.'; return; }
+      busy(true); err.textContent = '';
+      API.acceptTerms(TERMS.version).then(function () { return boot(); })
+        .catch(function (x) { err.textContent = x.message || 'That did not save.'; busy(false); });
+    }
     else if (fid === 'authForm') {
       busy(true); err.textContent = '';
       if (f.mode === 'forgot') {
@@ -1459,10 +1497,15 @@
         return;
       }
       var fresh = f.mode === 'up' || f.mode === 'finish';
+      var tick = form.querySelector('[name=agree]');
+      if (fresh && tick && !tick.checked) { err.textContent = 'Please read and accept the Staging Agreement to create an account.'; busy(false); tick.focus(); return; }
       var go = f.mode === 'finish' ? API.register(f)
         : f.mode === 'up' ? API.signUp(f)
         : API.signIn((f.email || '').trim(), f.password);
       go.then(function () {
+        // the account exists now; record that its owner accepted, if the database can
+        return fresh && tick ? API.acceptTerms(TERMS.version).catch(function () {}) : null;
+      }).then(function () {
         if (fresh) window.HLS.alertOffice('New customer account', ['A new ' + (KIND[f.kind] || 'customer').toLowerCase() + ' account was created.', 'Their details are under Accounts.']);
         sheet.close(); return boot();
       })
@@ -1591,6 +1634,10 @@
         return;
       }
       if (!s.kind) return finishView();
+      if (!s.staff && TERMS.version && !s.termsOff && s.agreed !== TERMS.version) {
+        document.getElementById('tabs').hidden = true;      // nothing else until it is accepted
+        return agreeView();
+      }
       if (atDoor) {                       // just came through the door: start on this account's first screen
         atDoor = false;
         history.replaceState(null, '', location.pathname + location.search + (s.staff ? '#houses' : '#home'));

@@ -10,6 +10,10 @@
                                   (staging my own house), 'designer', 'realtor', or null
                                   for a signed-in user with no account yet
      signIn(email, password)   signOut()
+     acceptTerms(version)      record that I accept this version of the agreement
+                               session() carries agreed (the version accepted, or
+                               null) and termsOff (true if the database cannot
+                               record acceptances yet: 0006 not installed)
      requestReset(email)       email a link that sets a new password
      arrival()                 call once on load: signs in from an emailed link.
                                -> null | { recovery: true|false } | { error }
@@ -110,7 +114,7 @@
 
   /* ================================================================ demo */
   function demoBackend() {
-    var KEY = 'hls-demo-v7', SKEY = 'hls-demo-session';
+    var KEY = 'hls-demo-v8', SKEY = 'hls-demo-session';
 
     function seed() {
       var day = 86400000, now = Date.now();
@@ -150,6 +154,7 @@
         { id: 3, kind: 'self', name: 'Sample Homeowner', studio: null, phone: null, email: 'homeowner@sample.test', created_at: iso(5) },
         { id: 4, kind: 'realtor', name: 'Sample Realtor', studio: 'Sample Realty Group', phone: null, email: 'realtor@sample.test', created_at: iso(3) }
       ];
+      accounts.forEach(function (a) { if (a.kind !== 'owner') { a.agreed_version = (CFG.terms || {}).version || null; a.agreed_at = a.created_at; } });
       var n = 1000;
       var it = function (title, cat, src, cost, price, house, room, photo, details, extra) {
         n++;
@@ -233,6 +238,7 @@
       var a = me(s);
       if (!a) throw fail('Sign in first.');
       if (staffOnly && a.kind !== 'owner') throw fail('Only Hughes Living staff can do that.');
+      if (a.kind !== 'owner' && !a.agreed_version) throw fail('Accept the staging agreement first.');   // as stg_require_account does
       return a;
     }
     function mine(s, a) {
@@ -249,7 +255,8 @@
     }
     function setSession(id) { try { id == null ? localStorage.removeItem(SKEY) : localStorage.setItem(SKEY, String(id)); } catch (e) {} }
     function sessionOf(a) {
-      return a ? { signedIn: true, email: a.email, name: a.name, studio: a.studio, kind: a.kind, staff: a.kind === 'owner' }
+      return a ? { signedIn: true, email: a.email, name: a.name, studio: a.studio, kind: a.kind, staff: a.kind === 'owner',
+                   agreed: a.agreed_version || null, agreedAt: a.agreed_at || null, termsOff: false }
                : { signedIn: false, email: null, name: null, kind: null, staff: false };
     }
 
@@ -281,6 +288,14 @@
         });
       },
       register: function () { return no('Nothing to finish in the sample.'); },
+      acceptTerms: function (version) {
+        var s = load(), a = me(s);
+        if (!a || a.kind === 'owner') return no('Only a customer account accepts the agreement.');
+        if (!txt(version)) return no('Which version of the agreement?');
+        a.agreed_version = txt(version); a.agreed_at = new Date().toISOString();
+        (s.agreements = s.agreements || []).push({ account_id: a.id, version: a.agreed_version, agreed_at: a.agreed_at });
+        save(s); return ok(true);
+      },
       requestReset: function () { return no('Sample mode cannot send email. Create another sample account instead; it only lives in this browser.'); },
       arrival: function () { return ok(null); },
       setPassword: function (password) {
@@ -301,7 +316,7 @@
           return ok({ houses: s.houses.slice().reverse(), items: s.items, requests: s.requests.slice().reverse(),
                       moves: s.moves, catalog_count: s.catalog.length, services: s.services.slice().reverse(), scans: s.scans,
                       accounts: s.accounts.filter(function (x) { return x.kind !== 'owner'; })
-                        .map(function (x) { return pick(x, ['id', 'kind', 'name', 'studio', 'phone', 'email', 'created_at']); }) });
+                        .map(function (x) { return pick(x, ['id', 'kind', 'name', 'studio', 'phone', 'email', 'created_at', 'agreed_version', 'agreed_at']); }) });
         }
         // a customer: only their houses, never cost, office notes or buyers' contact details
         var ids = mine(s, a);
@@ -585,6 +600,7 @@
     /* Turn a database error into a sentence a person can act on. */
     function explain(error) {
       var m = (error && error.message) || 'Something went wrong.';
+      if (/agreement not accepted/i.test(m)) return fail('Accept the staging agreement first.');
       if (/not staff|no staging account|permission denied/i.test(m)) return fail('This account cannot do that.');
       if (/Could not find the function|PGRST202|schema cache/i.test(m)) {
         return fail('Part of the staging database is not installed in Supabase yet. Run supabase/install-all.sql (it is safe to run again).');
@@ -608,7 +624,10 @@
           return rpc('stg_my_account').then(function (a) {
             staff = !!(a && a.kind === 'owner');
             return { signedIn: true, email: s.user.email, name: a ? a.name : null, studio: a ? a.studio : null,
-                     kind: a ? a.kind : null, staff: staff };
+                     kind: a ? a.kind : null, staff: staff,
+                     // before 0006 the answer has no agreed_version at all: acceptances cannot be recorded yet
+                     agreed: a ? a.agreed_version || null : null, agreedAt: a ? a.agreed_at || null : null,
+                     termsOff: !!a && !staff && !('agreed_version' in a) };
           });
         });
       },
@@ -673,6 +692,7 @@
           return true;
         });
       },
+      acceptTerms: function (version) { return rpc('stg_accept_terms', { p_version: version }); },
       sampleSignIn: function () { return Promise.reject(fail('Sample accounts exist only in sample mode.')); },
       signOut: function () { staff = false; return client().then(function (c) { return c.auth.signOut(); }); },
 

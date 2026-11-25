@@ -802,3 +802,21 @@ body[data-role] .step--next .step__s{ color:var(--role); }
   .front .tabs a:not(.tabs__in){ padding:0 .55rem; font-size:.85rem; }
 }
 .front .foot{ padding-inline:var(--gut); }
+
+/* ---------- the staging agreement ---------- */
+.agree{ display:flex; align-items:flex-start; gap:.7rem; margin:.4rem 0 1rem; padding:.8rem .9rem; background:var(--cream); color:var(--ink); font-size:.93rem; cursor:pointer; min-height:48px; }
+.agree input{ width:22px; height:22px; flex:none; margin:.05rem 0 0; accent-color:var(--ink); }
+.agree a{ font-weight:600; }
+.door--agree{ max-width:40rem; }
+.door--agree .agree{ margin-top:1.4rem; }
+.agree__pts{ list-style:none; margin:1.4rem 0; padding:0; border-top:1px solid var(--ink); }
+.agree__pts li{ padding:.65rem 0 .65rem 1.4rem; border-bottom:1px solid var(--line); position:relative; color:var(--ink); }
+.agree__pts li::before{ content:""; position:absolute; left:.2rem; top:1.25rem; width:.45rem; height:1px; background:var(--role, var(--accent)); }
+.terms__main{ max-width:46rem; padding-block:2.5rem 4rem; }
+.terms__ver{ font-family:var(--f-data); font-size:.85rem; color:var(--ink-3); margin:.7rem 0 1.4rem; }
+.terms__lede{ font-family:var(--f-disp); font-size:1.25rem; line-height:1.4; color:var(--ink); margin:0 0 1rem; }
+.terms section{ border-top:1px solid var(--line); padding-top:1.4rem; margin-top:1.6rem; scroll-margin-top:5rem; }
+.terms h2{ font-family:var(--f-disp); font-weight:400; font-size:1.55rem; line-height:1.2; color:var(--ink); margin:0 0 .6rem; letter-spacing:-.01em; }
+.terms section p{ margin:0 0 .8rem; }
+.terms__foot{ margin-top:2.2rem; padding-top:1.2rem; border-top:1px solid var(--ink); }
+@media print{ .terms .bar, .terms .skip{ display:none; } .terms__main{ max-width:none; padding:0; } }

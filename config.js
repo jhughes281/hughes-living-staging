@@ -38,6 +38,13 @@
     contactPhone: '',
     contactEmail: '',
 
+    // Sales credit. When a piece sells out of a house a customer account is
+    // staging (homeowner, designer or realtor), this percent of the sale price
+    // comes off that house's staging fee. It is a credit on Hughes Living's own
+    // invoice, never a payout, and it cannot take a fee below $0. Hughes
+    // Living's own houses earn none. Worked out on the page from the sold rows.
+    saleCreditPct: 10,
+
     // Services a signed-in customer can ask for, for one of their houses.
     // Carpet prices are a copy of Richard's own price book
     // (richards-carpet-cleaning/supabase/functions/_shared/pricing.js) and of

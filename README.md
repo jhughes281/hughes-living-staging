@@ -54,6 +54,15 @@ site into `services.move` in `config.js` and `stg_move_estimate()` in
 Hughes-move-tote-mobile app repo is not a source: its prices are generator
 filler. Clothes bags and wardrobe boxes are not in the form.
 
+## Sales credit
+
+When a piece sells out of a house that a customer account is staging, 10% of
+the sale price (`saleCreditPct` in `config.js`) comes off that house's staging
+fee. It is a credit on the fee, not a payout, and never more than the fee;
+Hughes Living's own houses earn none. Nothing is stored: the page works it out
+from the sold rows, and shows it on the house page, the dashboards, Accounts
+and Money (where profit is net of it). Hughes Living bills the fee after credit.
+
 ## Which login is this, and the Guide
 
 Each login has its own colour (green homeowner, clay designer, slate realtor,

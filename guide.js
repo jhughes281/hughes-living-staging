@@ -5,12 +5,17 @@
    lines from it into the dashboards and house pages so they have something to
    say before any houses exist.
 
-   Nothing here is a Hughes Living policy (fees, delivery, timing). Those are
-   Jay's to write; this file sticks to what the site itself does and to common
-   staging practice. */
+   Nothing here is a Hughes Living policy (fees, delivery, timing), with one
+   exception: the sales credit, whose percent is read from config.js. The rest
+   are Jay's to write; this file sticks to what the site itself does and to
+   common staging practice. */
 
 (function () {
   'use strict';
+
+  // the one number here that is a Hughes Living term, and it comes from config.js
+  var PCT = Number((window.HLS_CONFIG || {}).saleCreditPct) || 0;
+  var EARN = 'Earn ' + PCT + '% of every sale from your houses as a credit on the staging fee';
 
   /* One entry per login. `can` is what that login does here, `hughes` is what
      stays with Hughes Living. Both mirror the rules in api.js and the database. */
@@ -19,7 +24,7 @@
       name: 'Staging it myself',
       line: 'One house: your own. You choose the furniture and buyers scan a QR code to buy it.',
       can: ['Add your house and its dates', 'Choose from the furniture that is free in the Hughes Living warehouse, room by room',
-            'Print the QR card for the house and a tag for every piece', 'See what buyers ask for', 'Request a carpet cleaning, or totes and a moving crew'],
+            'Print the QR card for the house and a tag for every piece', 'See what buyers ask for', 'Request a carpet cleaning, or totes and a moving crew'].concat(PCT ? [EARN.replace('your houses', 'your house')] : []),
       hughes: ['Sets the staging fee', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     designer: {
@@ -27,7 +32,7 @@
       line: 'Several client houses at once, all drawing on the same Hughes Living warehouse.',
       can: ['Add a house for each client, with the client on file', 'Place and send back warehouse pieces across all your projects',
             'Keep go-in and come-out days, so they show under Coming up', 'Print QR cards and tags for each house',
-            'See what buyers ask for in your houses', 'Request a carpet cleaning, or totes and a moving crew'],
+            'See what buyers ask for in your houses', 'Request a carpet cleaning, or totes and a moving crew'].concat(PCT ? [EARN] : []),
       hughes: ['Sets the staging fee for each house', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     realtor: {
@@ -35,7 +40,7 @@
       line: 'Your listings, each with a QR code buyers scan at a showing.',
       can: ['Add each listing, with the seller on file and the listing link', 'Choose warehouse furniture for a listing, room by room',
             'Print the QR card and tags, and copy the buyer link to send', 'See who scanned and what they asked for',
-            'Request a carpet cleaning, or totes and a moving crew for a seller'],
+            'Request a carpet cleaning, or totes and a moving crew for a seller'].concat(PCT ? [EARN.replace('your houses', 'your listings')] : []),
       hughes: ['Sets the staging fee for each listing', 'Follows up with every buyer and takes the payment', 'Collects the pieces that sell']
     },
     owner: {
@@ -116,7 +121,8 @@
                'Hughes Living contacts the buyer, confirms the piece and takes the payment.',
                'You see the order and its status here, but not the buyer&rsquo;s phone or email.',
                'A piece being held shows On hold; once paid for it shows Sold, on your screens and on the buyer page.',
-               'A sold piece cannot be sent back from here. Hughes Living collects it.'] },
+               'A sold piece cannot be sent back from here. Hughes Living collects it.'].concat(PCT ? [
+               'Once a piece is paid for and marked Sold, ' + PCT + '% of its sale price comes off the staging fee for that house. It is a credit on the fee, not a payment, and it cannot take the fee below $0.'] : []) },
     { id: 'end', title: 'When the staging ends', when: 'ending',
       lead: 'Set the day the furniture comes out as soon as you know it, then close the house out.',
       points: ['The come-out day shows on your dashboard and counts down through the last week.',
@@ -148,7 +154,8 @@
                'Services: carpet cleanings and Move &amp; Tote jobs customers have asked for. Arrange each one, then set it Scheduled and Done.',
                'Furniture: add a piece by hand, from the store catalog (load the Shopify export once) or from an auction lot. Cost stays in the office.',
                'To hand a house to a customer, open it, choose Edit and set Staged by. The staging fee is set on the same form.',
-               'Money: profit per house is the fee plus sales, less what the sold pieces cost. Truck, labor, storage and sales tax are not in it.'] }
+               'Money: profit per house is the fee plus sales, less what the sold pieces cost and the sales credit. Truck, labor, storage and sales tax are not in it.'].concat(PCT ? [
+               'Sales credit: ' + PCT + '% of each sale from a customer account&rsquo;s house comes off that house&rsquo;s fee. Bill the fee after credit shown on the house page.'] : []) }
   ];
 
   window.HLS_GUIDE = { roles: ROLES, rooms: ROOMS, topics: TOPICS };

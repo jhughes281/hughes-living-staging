@@ -688,3 +688,7 @@ body[data-role] .step--next .step__s{ color:var(--role); }
 .provider__img[src*="move-tote"]{ aspect-ratio:1; max-width:24rem; object-position:center; }
 .req__reach .linkbtn{ min-height:44px; display:inline-flex; align-items:center; }
 .reqs + .seg, .empty + .seg{ margin-top:1.6rem; }
+
+/* realtor rows carry a fifth number: the sales credit */
+.lrow__nums{ grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr)); gap:.7rem 1rem; }
+.grid td small{ white-space:nowrap; }

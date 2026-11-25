@@ -37,6 +37,7 @@
   var RSTATUS = { 'new': 'New', contacted: 'Contacted', sold: 'Sold', closed: 'Closed' };
   var SOURCE = { store: 'Hughes Living Co.', auction: 'Auction lot', other: 'Other' };
   var DAY = 86400000;
+  var CREDIT = Number(CFG.saleCreditPct) || 0;    // percent of a sale that comes off the staging fee
 
   /* ---------- lookups and sums ---------- */
   var house = function (id) { return D.houses.filter(function (h) { return h.id === id; })[0]; };
@@ -64,10 +65,14 @@
     var live = here.filter(function (i) { return i.status !== 'sold'; });
     var sold = D.items.filter(function (i) { return i.status === 'sold' && i.sold_house_id === h.id; });
     var sales = sum(sold, 'sold_cents'), cogs = sum(sold, 'cost_cents');
+    var credit = h.account_id != null ? Math.round(sales * CREDIT / 100) : 0, applied = Math.min(credit, h.fee_cents || 0);
     var end = h.status === 'destaged' && h.destage_on ? new Date(h.destage_on + 'T12:00:00') : new Date();
     return {
       pieces: here.length, floor: sum(live, 'price_cents'), floorCost: sum(live, 'cost_cents'),
-      soldN: sold.length, sales: sales, cogs: cogs, profit: (h.fee_cents || 0) + sales - cogs,
+      soldN: sold.length, sales: sales, cogs: cogs,
+      // the sales credit: earned on every sale from an account's house, applied up to the fee
+      credit: credit, applied: applied, net: (h.fee_cents || 0) - applied,
+      profit: (h.fee_cents || 0) - applied + sales - cogs,
       days: h.staged_on ? Math.max(0, Math.floor((end - new Date(h.staged_on + 'T12:00:00')) / DAY)) : null,
       newReq: D.requests.filter(function (r) { return r.house_id === h.id && r.status === 'new'; }).length
     };
@@ -230,6 +235,9 @@
         '<div><dt>On the floor</dt><dd>' + money(s.floor, '$0') + '</dd></div>' +
         '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + ' <small>' + s.soldN + ' pc</small></dd></div>' +
         '<div><dt>Staging fee</dt><dd>' + (h.fee_cents ? money(h.fee_cents) : (ME.staff ? '$0' : '<small>Not set yet</small>')) + '</dd></div>' +
+        (CREDIT && h.account_id != null
+          ? '<div><dt>Sales credit, ' + CREDIT + '%</dt><dd>' + money(s.credit, '$0') + '</dd></div>' +
+            (h.fee_cents ? '<div><dt>Fee after credit</dt><dd>' + money(s.net, '$0') + '</dd></div>' : '') : '') +
         (ME.staff ? '<div><dt>Profit so far</dt><dd>' + money(s.profit, '$0') + '</dd></div>' : '') +
         '<div><dt>Staged</dt><dd>' + (s.days != null ? s.days + ' <small>days, since ' + fmtDate(h.staged_on).replace(/, \d{4}$/, '') + '</small>' : 'Not yet') + '</dd></div>' +
       '</dl>' +
@@ -323,13 +331,14 @@
 
   /* ================================================================= money */
   function renderMoney() {
-    var t = { fee: 0, sales: 0, cogs: 0, profit: 0, n: 0 };
+    var t = { fee: 0, sales: 0, cogs: 0, profit: 0, n: 0, credit: 0 };
     var rows = D.houses.map(function (h) {
       var s = stats(h);
-      t.fee += h.fee_cents || 0; t.sales += s.sales; t.cogs += s.cogs; t.profit += s.profit; t.n += s.soldN;
+      t.fee += h.fee_cents || 0; t.sales += s.sales; t.cogs += s.cogs; t.profit += s.profit; t.n += s.soldN; t.credit += s.applied;
       return '<tr><td><a href="#house/' + h.id + '">' + esc(h.address) + '</a><small>' + HSTATUS[h.status] + '</small></td>' +
         '<td class="num">' + money(h.fee_cents, '$0') + '</td><td class="num">' + s.soldN + '</td>' +
         '<td class="num">' + money(s.sales, '$0') + '</td><td class="num">' + money(s.cogs, '$0') + '</td>' +
+        '<td class="num">' + (s.applied ? '&minus;' + money(s.applied) : '–') + (s.credit > s.applied ? '<small>' + money(s.credit) + ' earned</small>' : '') + '</td>' +
         '<td class="num"><strong>' + money(s.profit, '$0') + '</strong></td></tr>';
     }).join('');
     var loose = D.items.filter(function (i) { return i.status === 'sold' && i.sold_house_id == null; });
@@ -337,7 +346,7 @@
       var ls = sum(loose, 'sold_cents'), lc = sum(loose, 'cost_cents');
       t.sales += ls; t.cogs += lc; t.profit += ls - lc; t.n += loose.length;
       rows += '<tr><td>Sold from the warehouse</td><td class="num">–</td><td class="num">' + loose.length + '</td>' +
-        '<td class="num">' + money(ls, '$0') + '</td><td class="num">' + money(lc, '$0') + '</td><td class="num"><strong>' + money(ls - lc, '$0') + '</strong></td></tr>';
+        '<td class="num">' + money(ls, '$0') + '</td><td class="num">' + money(lc, '$0') + '</td><td class="num">–</td><td class="num"><strong>' + money(ls - lc, '$0') + '</strong></td></tr>';
     }
     var out = D.items.filter(function (i) { return i.house_id != null && i.status !== 'sold' && i.status !== 'retired'; });
     var noCost = D.items.filter(function (i) { return i.status === 'sold' && i.cost_cents == null; }).length;
@@ -345,10 +354,11 @@
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Money</p><h1 class="title">What each house <em>made</em></h1></div></div>' +
       '<div class="tablewrap"><table class="grid grid--money"><thead><tr><th>House</th><th class="num">Staging fee</th><th class="num">Pieces sold</th>' +
-        '<th class="num">Sales</th><th class="num">Cost of those pieces</th><th class="num">Profit</th></tr></thead><tbody>' + rows + '</tbody>' +
+        '<th class="num">Sales</th><th class="num">Cost of those pieces</th><th class="num">Sales credit</th><th class="num">Profit</th></tr></thead><tbody>' + rows + '</tbody>' +
         '<tfoot><tr><td>Total</td><td class="num">' + money(t.fee, '$0') + '</td><td class="num">' + t.n + '</td><td class="num">' + money(t.sales, '$0') +
-        '</td><td class="num">' + money(t.cogs, '$0') + '</td><td class="num"><strong>' + money(t.profit, '$0') + '</strong></td></tr></tfoot></table></div>' +
-      '<p class="fine">Profit = staging fee + sales &minus; what the sold pieces cost. It leaves out the truck, labor, storage and sales tax.' +
+        '</td><td class="num">' + money(t.cogs, '$0') + '</td><td class="num">' + (t.credit ? '&minus;' + money(t.credit) : '–') + '</td><td class="num"><strong>' + money(t.profit, '$0') + '</strong></td></tr></tfoot></table></div>' +
+      '<p class="fine">Profit = staging fee + sales &minus; what the sold pieces cost &minus; the sales credit. It leaves out the truck, labor, storage and sales tax.' +
+        (CREDIT ? ' The sales credit is ' + CREDIT + '% of each sale from a customer account&rsquo;s house, taken off that house&rsquo;s fee and never more than the fee.' : '') +
         (noCost ? ' <strong>' + noCost + ' sold piece' + (noCost > 1 ? 's have' : ' has') + ' no cost entered</strong>, so profit is overstated until that is filled in.' : '') + '</p>' +
       '<dl class="facts"><div><dt>Out in houses now</dt><dd>' + out.length + ' <small>pieces</small></dd></div>' +
         '<div><dt>Their price tags</dt><dd>' + money(sum(out, 'price_cents'), '$0') + '</dd></div>' +
@@ -360,14 +370,15 @@
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Accounts</p><h1 class="title">Who stages with your <em>furniture</em></h1></div></div>' +
       (D.accounts.length ? '<div class="tablewrap"><table class="grid"><thead><tr><th>Name</th><th>Kind</th><th>Reach them</th>' +
-        '<th class="num">Houses</th><th class="num">Pieces out</th><th>Since</th></tr></thead><tbody>' +
+        '<th class="num">Houses</th><th class="num">Pieces out</th><th class="num">Credit earned</th><th>Since</th></tr></thead><tbody>' +
         D.accounts.map(function (a) {
           var hs = D.houses.filter(function (h) { return String(h.account_id) === String(a.id); });
           var out = hs.reduce(function (t, h) { return t + inHouse(h.id).filter(function (i) { return i.status !== 'sold'; }).length; }, 0);
           return '<tr><td><strong>' + esc(a.name) + '</strong>' + (a.studio ? '<small>' + esc(a.studio) + '</small>' : '') + '</td>' +
             '<td>' + chip(a.kind === 'self' ? 'available' : 'hold', KIND[a.kind]) + '</td>' +
             '<td>' + (a.email ? '<a href="mailto:' + esc(a.email) + '">' + esc(a.email) + '</a>' : '') + (a.phone ? '<small>' + esc(a.phone) + '</small>' : '') + '</td>' +
-            '<td class="num">' + hs.length + '</td><td class="num">' + out + '</td><td>' + fmtDate(a.created_at) + '</td></tr>';
+            '<td class="num">' + hs.length + '</td><td class="num">' + out + '</td>' +
+            '<td class="num">' + money(hs.reduce(function (t, h) { return t + stats(h).credit; }, 0), '$0') + '</td><td>' + fmtDate(a.created_at) + '</td></tr>';
         }).join('') + '</tbody></table></div>'
         : '<p class="empty">No customer accounts yet. Homeowners, interior designers and realtors create their own from the sign-in page.</p>') +
       '<p class="fine">To hand a house to an account, open the house, choose Edit, and set &ldquo;Staged by&rdquo;.</p>';
@@ -488,7 +499,9 @@
           : 'Before the furniture goes in. ' + (CARPET ? 'First room ' + money(CARPET.firstRoomCents) + ' with ' + esc(CARPET.name) + '.' : ''),
         more: h ? '<a href="#services/carpet">' + (cleaning ? 'See the request' : 'Request a cleaning') + '</a>' : '' },
       { t: 'Staging fee', wait: true, done: !!h && h.fee_cents > 0, s: h && h.fee_cents ? 'Set' : '',
-        d: h && h.fee_cents ? money(h.fee_cents) + ', set by Hughes Living.' : 'Hughes Living sets this. Not set yet.' },
+        d: (h && h.fee_cents ? money(h.fee_cents) + ', set by Hughes Living.' : 'Hughes Living sets this. Not set yet.') +
+          (!CREDIT ? '' : h && s.credit ? ' Less ' + money(s.applied, '$0') + ' credit from sales: ' + money(s.net, '$0') + ' to pay.'
+            : ' ' + CREDIT + '% of every piece that sells from your house comes off it.') },
       { t: 'Mark the house staged', done: !!h && h.status !== 'planned',
         d: h && h.status !== 'planned' ? 'Staged ' + (h.staged_on ? shortDate(h.staged_on) : '') + '. The QR code is ' + (h.status === 'staged' ? 'live.' : 'closed.')
           : 'Once the furniture is in. That opens the page buyers see when they scan the QR code.',
@@ -602,6 +615,8 @@
         '<div><dt>Pieces out</dt><dd>' + out.length + '</dd></div>' +
         '<div><dt>Their price tags</dt><dd>' + money(sum(out, 'price_cents'), '$0') + '</dd></div>' +
         '<div><dt>Free to place</dt><dd>' + free.length + ' <small>in the warehouse</small></dd></div>' +
+        (CREDIT ? '<div><dt>Credit from sales</dt><dd>' + money(D.houses.reduce(function (t, h) { return t + stats(h).credit; }, 0), '$0') +
+          ' <small>' + CREDIT + '% of sales</small></dd></div>' : '') +
       '</dl>' +
       (D.houses.length
         ? '<div class="board">' + col('planned', 'Nothing being planned.') + col('staged', 'Nothing staged right now.') + col('destaged', 'No finished projects yet.') + '</div>'
@@ -640,6 +655,7 @@
           '<div><dt>Staged</dt><dd>' + (h.status === 'planned' || s.days == null ? '–' : s.days + ' <small>days</small>') + '</dd></div>' +
           '<div><dt>Buyer requests</dt><dd>' + reqs.length + (s.newReq ? ' <small class="is-flag">' + s.newReq + ' new</small>' : '') + '</dd></div>' +
           '<div><dt>Sold from here</dt><dd>' + money(s.sales, '$0') + '</dd></div>' +
+          (CREDIT ? '<div><dt>Your credit, ' + CREDIT + '%</dt><dd>' + money(s.credit, '$0') + (s.credit && h.fee_cents ? ' <small>fee now ' + money(s.net, '$0') + '</small>' : '') + '</dd></div>' : '') +
           '<div><dt>Comes out</dt><dd>' + (h.destage_on ? shortDate(h.destage_on) + (h.status === 'staged' ? ' <small>' + inDays(to) + '</small>' : '') : '–') + '</dd></div>' +
         '</dl>' +
         '<div class="head__acts">' + qrActs(h) + '</div></div></article>';

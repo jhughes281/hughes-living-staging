@@ -43,6 +43,20 @@ data layer, never by the page. The prices live in three places that a test
 keeps equal: Richard's `pricing.js`, `services.carpet` in `config.js`, and
 `stg_carpet_estimate()` in `supabase/0003_services.sql`.
 
+## Which login is this, and the Guide
+
+Each login has its own colour (green homeowner, clay designer, slate realtor,
+ink office): a band under the header names the login, and the tab title does
+too. The Guide tab holds what the pages know, from `guide.js`: what each login
+does, what each room usually needs, and general staging practice. Dashboards
+show the one topic that fits where a house is, and a house page lists what a
+room is still missing. `guide.js` is words only and states no Hughes Living
+policy (fees, delivery, timing).
+
+An empty office shows "Start here" and a **Load sample data** button: two
+houses and ten pieces written through the normal functions, each marked
+SAMPLE in its office note, removed again with **Remove sample data**.
+
 ## Data
 
 Same Supabase project as Hughes Living Auctions. `supabase/0001_staging.sql`

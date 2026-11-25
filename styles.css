@@ -601,3 +601,78 @@ a.hrow:hover{ background:var(--cream); }
   .step__s{ display:block; margin:.2rem 0 0; }
   .dash__acts .btn, .lrow .head__acts .btn{ flex:1 1 auto; }
 }
+
+/* ================================================= which login this is
+   One colour per login, from the same earthy family as the rest of the site.
+   It fills the band under the header and marks the current tab, the eyebrows
+   and the "next" step, so a glance says which account is open. All four clear
+   AA against white, as text and as a fill behind white text. */
+body{ --role:var(--accent); }
+body[data-role=self]{     --role:#3D7A40; }   /* green: a homeowner */
+body[data-role=designer]{ --role:#A6532E; }   /* clay: an interior designer */
+body[data-role=realtor]{  --role:#2F4A63; }   /* slate blue: a realtor */
+body[data-role=owner]{    --role:#292822; }   /* ink: the Hughes Living office */
+
+.role{ background:var(--role); color:#fff; font-size:.85rem; }
+.role__in{ display:flex; align-items:center; gap:.2rem 1.2rem; flex-wrap:wrap; padding-block:.45rem; }
+.role__k{ font-weight:700; font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; white-space:nowrap; }
+.role__l{ flex:1 1 18rem; min-width:0; }
+.role a{ color:#fff; display:inline-flex; align-items:center; min-height:44px; margin-block:-.45rem; white-space:nowrap; }
+.role a:hover{ color:#fff; text-decoration-thickness:2px; }
+.role a:focus-visible{ outline-color:#fff; }
+body[data-role] .mark__role,
+body[data-role] .view .eyebrow{ color:var(--role); }
+body[data-role] .tabs a[aria-current]{ border-bottom-color:var(--role); }
+body[data-role] .step--next .step__n{ background:var(--role); border-color:var(--role); }
+body[data-role] .step--next .step__s{ color:var(--role); }
+
+/* ================================================================ guide */
+.guide{ display:grid; grid-template-columns:14rem minmax(0,1fr); gap:0 3.5rem; align-items:start; }
+.guide__nav{ position:sticky; top:5rem; display:flex; flex-direction:column; border-top:1px solid var(--ink); }
+.guide__nav a{ display:flex; align-items:center; min-height:44px; padding:.3rem 0; border-bottom:1px solid var(--line); text-decoration:none; font-size:.9rem; color:var(--ink-2); }
+.guide__nav a:hover{ color:var(--ink); text-decoration:underline; }
+.gsec{ max-width:44rem; padding-bottom:1.2rem; scroll-margin-top:5.5rem; }
+.gsec:first-child .h2{ margin-top:0; }
+.gsec__lead{ font-family:var(--f-disp); font-size:1.25rem; line-height:1.35; color:var(--ink); margin:0 0 .8rem; }
+.gsec ul, .tip ul{ margin:0; padding:0; list-style:none; border-top:1px solid var(--line); }
+.gsec li, .tip li{ padding:.6rem 0 .6rem 1.4rem; border-bottom:1px solid var(--line); position:relative; }
+.gsec li::before, .tip li::before{ content:""; position:absolute; left:.2rem; top:1.15rem; width:.45rem; height:1px; background:var(--role); }
+.can{ display:grid; grid-template-columns:1fr 1fr; gap:0 2.5rem; }
+.can h3{ font-size:.7rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-3); margin:0 0 .5rem; }
+.kit{ margin:0; border-top:1px solid var(--ink); }
+.kit div{ display:grid; grid-template-columns:10rem minmax(0,1fr); gap:1rem; padding:.6rem 0; border-bottom:1px solid var(--line); }
+.kit dt{ font-family:var(--f-disp); font-style:italic; font-size:1.15rem; color:var(--ink); }
+.kit dd{ margin:0; }
+
+/* one topic from the guide, on a dashboard */
+.tip{ margin-top:2.6rem; padding:1.3rem 1.4rem 1rem; border:1px solid var(--line); border-left:3px solid var(--role); max-width:52rem; }
+.tip__h{ font-family:var(--f-disp); font-weight:400; font-size:1.5rem; line-height:1.15; color:var(--ink); margin:0 0 .3rem; }
+.tip p{ margin:0 0 .7rem; }
+.tip li{ font-size:.93rem; }
+.tip .tip__more{ margin:.3rem 0 0; }
+.tip__more a{ display:inline-flex; align-items:center; min-height:44px; }
+.tip + .svc{ margin-top:1.4rem; }
+.room__hint{ margin:.6rem 0 0; font-size:.85rem; color:var(--ink-3); }
+.room__hint a{ display:inline-flex; align-items:center; min-height:44px; margin-block:-.7rem; }
+
+/* the office, before there is anything in it */
+.start{ background:var(--cream); padding:1.3rem 1.4rem 1.2rem; margin-bottom:1.6rem; }
+.start .h2{ margin-top:0; }
+.start__l{ margin:0; padding:0 0 0 1.3rem; max-width:48rem; }
+.start__l li{ padding:.35rem 0; }
+.start__l strong{ color:var(--ink); }
+.start__l a, .start__l .linkbtn, .note .linkbtn{ display:inline-flex; align-items:center; min-height:44px; margin-block:-.7rem; }
+.start__s{ margin:1rem 0 0; display:flex; align-items:center; gap:.6rem 1rem; flex-wrap:wrap; color:var(--ink); }
+.start__s .fine{ margin:0; }
+.note--sample{ border-left:3px solid var(--flag); }
+
+@media (max-width: 860px){
+  .guide{ grid-template-columns:1fr; }
+  .guide__nav{ position:static; margin-bottom:1.6rem; }
+  .gsec{ scroll-margin-top:1rem; }
+}
+@media (max-width: 520px){
+  .can{ grid-template-columns:1fr; gap:1.2rem; }
+  .kit div{ grid-template-columns:1fr; gap:.1rem; }
+  .role__l{ flex-basis:100%; }
+}

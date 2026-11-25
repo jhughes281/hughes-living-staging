@@ -154,6 +154,7 @@
     view.innerHTML =
       '<div class="head"><div><p class="eyebrow">Houses</p><h1 class="title">' + title + '</h1></div>' +
       '<button class="btn" type="button" data-act="new-house">Add a house</button></div>' +
+      officeStart() +
       (D.houses.length
         ? '<div class="hlist"><div class="hrow hrow--head" aria-hidden="true"><span>House</span><span>Status</span>' +
           '<span class="num">Pieces</span><span class="num">On the floor</span><span class="num">Sold</span><span class="num">Days</span></div>' + rows + '</div>'
@@ -184,7 +185,10 @@
               : chip(i.status, STATUS[i.status]) +
                 (sold ? '' : '<button class="linkbtn" type="button" data-act="send-back" data-id="' + i.id + '">Send back</button>')) +
           '</div>';
-        }).join('') + '</section>';
+        }).join('') +
+        (h.status !== 'destaged' && missingIn(r, rooms[r]).length
+          ? '<p class="room__hint">Usually also in this room: ' + esc(missingIn(r, rooms[r]).join(', ').toLowerCase()) + '. <a href="#guide/kit">What each room needs</a></p>' : '') +
+        '</section>';
     }).join('');
 
     var spare = D.items.filter(function (i) { return i.house_id == null && (i.status === 'available' || i.status === 'hold'); });
@@ -535,7 +539,8 @@
         (D.houses.length > 1 ? '<p class="sub">You have ' + D.houses.length + ' houses. <a href="#houses">See them all</a></p>' : '') + '</div>' +
         (h ? '<div class="head__acts"><a class="btn btn--ghost" href="#house/' + h.id + '">Open the house</a></div>' : '') + '</div>' +
       '<div class="dash"><div>' + stepHtml + '</div><aside>' + side + '</aside></div>' +
-      roomHtml;
+      roomHtml +
+      tipBox(topicForHouse(h), h ? 'for where your house is now' : 'before you start');
   }
 
   /* ---------- interior designer: several client projects and their dates ---------- */
@@ -609,6 +614,7 @@
         '<h2 class="h2">Buyers</h2>' +
         feed(D.requests.slice(0, 4), true, 'Nobody yet. Orders from your staged houses show here.') +
       '</aside></div>' +
+      tipBox(D.houses.length ? topic('projects') : topic('rooms'), D.houses.length ? '' : 'before your first project') +
       svcBand('Carpets cleaned before install day');
   }
 
@@ -646,6 +652,7 @@
       '</div><aside>' +
         '<h2 class="h2">Waiting on you</h2>' + todoList(live) +
       '</aside></div>' +
+      tipBox(D.houses.some(function (h) { return h.status === 'staged'; }) ? topic('link') : topic('photos'), '') +
       svcBand('Carpets cleaned before the listing photos');
   }
 
@@ -732,6 +739,138 @@
         '<h2 class="h2">' + (ME.staff ? 'Request one for a house' : 'Request a cleaning') + '</h2>' + form + '</aside></div>' +
       (ME.staff ? '' : mine);
     svcSum();
+  }
+
+  /* ================================================================= guide
+     What the pages know (guide.js): which login this is, what a room usually
+     needs, and general staging practice. Drawn in full on the Guide tab, and a
+     line at a time on the dashboards and house pages. */
+  var GUIDE = window.HLS_GUIDE || { roles: {}, rooms: {}, topics: [] };
+  var topicsFor = function (kind) {
+    return GUIDE.topics.filter(function (t) { return t.who ? t.who.indexOf(kind) !== -1 : kind !== 'owner'; });
+  };
+  var topic = function (id) { return GUIDE.topics.filter(function (t) { return t.id === id; })[0]; };
+
+  /* What a room is still missing from its usual list, given the pieces in it. */
+  function missingIn(room, items) {
+    return (GUIDE.rooms[room] || []).filter(function (need) {
+      return !items.some(function (i) { return need.k.test(i.title + ' ' + (i.category || '')); });
+    }).map(function (need) { return need.n; });
+  }
+  /* The guide topic that fits where a house is right now. */
+  function topicForHouse(h) {
+    if (!h) return topic('before');
+    if (h.status === 'destaged') return topic('end');
+    if (h.status === 'staged') {
+      var to = daysTo(h.destage_on);
+      if (to != null && to <= 7) return topic('end');
+      return topic(D.requests.some(function (r) { return r.house_id === h.id; }) ? 'buyers' : 'qr');
+    }
+    return topic(inHouse(h.id).length ? 'photos' : 'rooms');
+  }
+  function tipBox(t, why) {
+    if (!t) return '';
+    return '<aside class="tip"><p class="eyebrow">From the guide' + (why ? ' · ' + esc(why) : '') + '</p>' +
+      '<h2 class="tip__h">' + t.title + '</h2><p>' + t.lead + '</p>' +
+      (t.points ? '<ul>' + t.points.slice(0, 3).map(function (p) { return '<li>' + p + '</li>'; }).join('') + '</ul>' : '') +
+      '<p class="tip__more"><a href="#guide/' + t.id + '">Read the rest</a></p></aside>';
+  }
+
+  function renderGuide(jump) {
+    var role = GUIDE.roles[ME.kind] || {}, list = topicsFor(ME.kind);
+    var roomsTable = '<dl class="kit">' + Object.keys(GUIDE.rooms).map(function (r) {
+      return '<div><dt>' + esc(r) + '</dt><dd>' + GUIDE.rooms[r].map(function (n) { return esc(n.n); }).join(', ') + '</dd></div>';
+    }).join('') + '</dl>';
+
+    view.innerHTML =
+      '<div class="head"><div><p class="eyebrow">Guide · ' + esc(role.name || '') + '</p>' +
+        '<h1 class="title">' + (ME.staff ? 'How the office <em>works</em>' : 'How staging with Hughes Living <em>works</em>') + '</h1>' +
+        '<p class="sub">' + esc(role.line || '') + '</p></div></div>' +
+      '<div class="guide"><nav class="guide__nav" aria-label="Guide sections"><a href="#guide/login">This login</a>' +
+        list.map(function (t) { return '<a href="#guide/' + t.id + '">' + t.title + '</a>'; }).join('') + '</nav><div>' +
+        '<section class="gsec" id="g-login"><h2 class="h2">This login: ' + esc(role.name || '') + '</h2>' +
+          '<div class="can"><div><h3>What you do here</h3><ul>' + (role.can || []).map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' +
+          (role.hughes && role.hughes.length ? '<div><h3>What Hughes Living does</h3><ul>' + role.hughes.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' : '') +
+          '</div>' +
+          (ME.staff ? '' : '<p class="fine">You never see what a piece cost, the office notes, another account&rsquo;s houses, or a buyer&rsquo;s phone or email. Those stay with Hughes Living.</p>') +
+        '</section>' +
+        list.map(function (t) {
+          return '<section class="gsec" id="g-' + t.id + '"><h2 class="h2">' + t.title + '</h2><p class="gsec__lead">' + t.lead + '</p>' +
+            (t.points ? '<ul>' + t.points.map(function (p) { return '<li>' + p + '</li>'; }).join('') + '</ul>' : '') +
+            (t.rooms ? roomsTable : '') + '</section>';
+        }).join('') +
+      '</div></div>';
+    var el = jump && document.getElementById('g-' + jump);
+    if (el) el.scrollIntoView();
+  }
+
+  /* ---------- sample data: something to look at in an empty office ----------
+     Written through the same doors as real data, so it is real rows: staff can
+     open the houses, print the cards and scan them. Every row is marked SAMPLE
+     in its office note, which is how "Remove sample data" finds them again. */
+  var SAMPLE = 'SAMPLE';
+  var isSample = function (row) { return String(row.notes || '').indexOf(SAMPLE) === 0; };
+  function dateOff(n) { var d = new Date(Date.now() + n * DAY); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function loadSample() {
+    var P = 'img/sample/', note = SAMPLE + ' data. Remove it from the Houses tab.';
+    var houses = [
+      { address: '4410 Sample Oak Lane', city: 'Houston', zip: '77008', client_name: 'Sample Agent, Heights Realty', status: 'staged',
+        staged_on: dateOff(-12), destage_on: dateOff(48), fee_cents: 180000, cover_url: 'img/looks/look-stone-hearth.webp',
+        public_note: 'A sample house. These pieces are examples, not for sale.', notes: note },
+      { address: '918 Example Bayou Court', city: 'Houston', zip: '77007', client_name: 'Sample Builder LLC', status: 'planned',
+        staged_on: dateOff(6), destage_on: dateOff(66), fee_cents: 240000, cover_url: 'img/looks/look-fireside.webp', notes: note }
+    ];
+    // [title, category, source, cost, price, house (0 = first sample house, null = warehouse), room, photo, extra]
+    var pieces = [
+      ['Grey 3-piece sectional', 'Sectional', 'store', 46800, 109999, 0, 'Living room', 'lot-sectional.jpg'],
+      ['Boucle accent chair', 'Accent chair', 'store', 14200, 29899, 0, 'Living room', 'lot-accent-chair.jpg'],
+      ['Arc floor lamp', 'Lighting', 'auction', 2500, 8900, 0, 'Living room', 'lot-arc-lamp.jpg', { status: 'sold', sold_cents: 8500, sold_to: 'Sample buyer' }],
+      ['8 x 10 area rug', 'Rug', 'store', 7100, 14999, 0, 'Living room', 'lot-rug.jpg'],
+      ['Upholstered king headboard', 'Headboard', 'store', 9000, 18999, 0, 'Primary bedroom', 'lot-headboard.jpg'],
+      ['Pair of nightstands', 'Nightstand', 'auction', 6000, 16000, 0, 'Primary bedroom', 'lot-nightstands.jpg', { status: 'hold' }],
+      ['Six-drawer dresser', 'Dresser', 'auction', 11000, 32500, 0, 'Primary bedroom', 'lot-dresser.jpg'],
+      ['Arched floor mirror', 'Mirror', 'store', 5200, 10999, 0, 'Entry', 'lot-mirror.jpg'],
+      ['Entry bench', 'Bench', 'auction', 4000, 12000, null, null, 'lot-bench.jpg'],
+      ['65" TV stand', 'TV stand', 'store', 9500, 19999, null, null, 'lot-tvstand.jpg']
+    ];
+    var ids = [];
+    var chain = houses.reduce(function (p, h) {
+      return p.then(function () { return API.saveHouse(h); }).then(function (saved) { ids.push(saved.id); });
+    }, Promise.resolve());
+    pieces.forEach(function (x) {
+      chain = chain.then(function () {
+        return API.saveItem(Object.assign({ title: x[0], category: x[1], source: x[2], cost_cents: x[3], price_cents: x[4],
+          house_id: x[5] == null ? null : ids[x[5]], room: x[6], photo_url: P + x[7], details: 'Sample piece.',
+          status: 'available', notes: SAMPLE }, x[8] || {}));
+      });
+    });
+    return chain;
+  }
+  function removeSample() {
+    var chain = Promise.resolve();
+    D.items.filter(isSample).forEach(function (i) { chain = chain.then(function () { return API.deleteItem(i.id); }); });
+    D.houses.filter(isSample).forEach(function (h) { chain = chain.then(function () { return API.deleteHouse(h.id); }); });
+    return chain;
+  }
+  /* What staff see above the houses: how to start when the office is empty,
+     or a reminder that what they are looking at is sample data. */
+  function officeStart() {
+    if (!ME.staff) return '';
+    var sh = D.houses.filter(isSample).length, si = D.items.filter(isSample).length;
+    if (sh || si) {
+      return '<p class="note note--sample"><strong>Sample data is loaded</strong> ' + plural(sh, 'house') + ' and ' + plural(si, 'piece') +
+        ', each marked SAMPLE in its office note. Real houses and pieces can sit beside them. ' +
+        '<button class="linkbtn" type="button" data-act="remove-sample">Remove sample data</button></p>';
+    }
+    if (D.houses.length || D.items.length) return '';
+    return '<section class="start"><h2 class="h2">Start here</h2><ol class="start__l">' +
+      '<li><strong>Load the store catalog.</strong> Export your products from Shopify once, so pieces can be added by name with their price, cost and photo. ' +
+        '<button class="linkbtn" type="button" data-act="from-store">Load the catalog</button></li>' +
+      '<li><strong>Add the furniture you stage with.</strong> By hand, from the store, or from an auction lot. <a href="#furniture">Go to Furniture</a></li>' +
+      '<li><strong>Add a house</strong> and place pieces in it, room by room. Mark it Staged to open its QR page.</li>' +
+      '<li><strong>Print the QR card and tags</strong> from the house page.</li></ol>' +
+      '<p class="start__s">Or look around first: <button class="btn btn--ghost" type="button" data-act="load-sample">Load sample data</button> ' +
+        '<span class="fine">Two sample houses and ten sample pieces, removable with one click.</span></p></section>';
   }
 
   /* ================================================================ sheets */
@@ -960,6 +1099,15 @@
       (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject())
         .then(function () { toast('Buyer link copied.'); }, function () { prompt('Copy the buyer link:', link); });
     }
+    else if (act === 'load-sample') {
+      el.disabled = true; toast('Loading sample data…');
+      run(loadSample(), 'Sample data loaded.').catch(function () {});
+    }
+    else if (act === 'remove-sample') {
+      if (confirm('Remove every sample house and sample piece? Their requests and history go too. Real houses and pieces are not touched.')) {
+        run(removeSample(), 'Sample data removed.').catch(function () {});
+      }
+    }
     else if (act === 'cancel-service') {
       if (confirm('Cancel this cleaning request?')) run(API.setService(id, 'cancelled'), 'Request cancelled.').catch(function () {});
     }
@@ -1134,6 +1282,7 @@
 
     if (parts[0] === 'home') renderHome();
     else if (parts[0] === 'services') renderServices();
+    else if (parts[0] === 'guide') renderGuide(parts[1]);
     else if (parts[0] === 'house') renderHouse(Number(parts[1]));
     else if (parts[0] === 'furniture') renderFurniture();
     else if (parts[0] === 'requests') renderRequests();
@@ -1189,11 +1338,18 @@
       var who = document.getElementById('who');
       document.getElementById('tabs').hidden = !s.kind;
       document.getElementById('signOut').hidden = !s.signedIn;
-      who.hidden = !s.kind;
+      who.hidden = true;                    // the band under the header says who is signed in
       who.textContent = !s.kind ? '' : (s.studio || s.name || s.email) + (s.staff ? ' · ' + KIND[s.kind] : '');   // a customer's kind is already beside the name of the site
       document.querySelector('.mark__role').textContent = s.kind && !s.staff ? KIND[s.kind] : 'Office';
       document.querySelector('.mark').setAttribute('href', s.kind && !s.staff ? '#home' : '#houses');
       document.getElementById('tabHouses').textContent = HOUSEWORD[s.kind] || 'Houses';
+      var role = GUIDE.roles[s.kind], band = document.getElementById('roleBand');
+      s.kind ? document.body.setAttribute('data-role', s.kind) : document.body.removeAttribute('data-role');
+      document.title = (role ? role.name + ' · ' : '') + 'Hughes Living Staging';
+      band.hidden = !role;
+      band.innerHTML = role ? '<div class="wrap role__in"><span class="role__k">' + esc(role.name) + ' login</span>' +
+        '<span class="role__l">' + esc((s.staff ? '' : (s.studio || s.name || s.email || '') + '. ') + role.line) + '</span>' +
+        '<a href="#guide/login">What this login can do</a></div>' : '';
       if (!s.signedIn) return doorView();
       if (!s.kind) return finishView();
       if (atDoor) {                       // just came through the door: start on this account's first screen
@@ -1212,7 +1368,11 @@
   document.addEventListener('input', onInput);
   document.addEventListener('submit', onSubmit);
   sheet.addEventListener('click', function (e) { if (e.target === sheet) sheet.close(); });
-  window.addEventListener('hashchange', function () { if (ME.kind) route(); window.scrollTo(0, 0); });
+  window.addEventListener('hashchange', function () {
+    var inGuide = /^#guide\//.test(location.hash);
+    if (ME.kind) route();
+    if (!inGuide) window.scrollTo(0, 0);          // a guide link scrolls to its own section
+  });
   document.getElementById('signOut').addEventListener('click', function () {
     API.signOut().then(function () { history.replaceState(null, '', location.pathname + location.search); return boot(); });
   });
